@@ -1,0 +1,107 @@
+{
+  "name": "tokens-sot",
+  "version": "1.0.0",
+  "description": "Figma plugin to export variables and styles as production-ready design tokens.",
+  "main": "dist/code.js",
+  "scripts": {
+    "build": "rimraf dist && npm run build:ui && npm run build:main && npm run typecheck",
+    "build:main": "node scripts/build-plugin.js",
+    "build:ui": "vite build",
+    "dev": "rimraf dist && concurrently \"npm run dev:main\" \"npm run dev:ui\"",
+    "dev:main": "node scripts/build-plugin.js --watch",
+    "dev:ui": "vite build --watch --emptyOutDir false",
+    "lint": "eslint --ext .ts,.tsx src",
+    "lint:fix": "eslint --ext .ts,.tsx src --fix",
+    "preview": "vite preview",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@radix-ui/react-accordion": "^1.1.2",
+    "@radix-ui/react-checkbox": "^1.0.4",
+    "@radix-ui/react-dialog": "^1.0.5",
+    "@radix-ui/react-scroll-area": "^1.0.6",
+    "@radix-ui/react-select": "^2.0.0",
+    "@radix-ui/react-separator": "^1.0.3",
+    "@radix-ui/react-switch": "^1.0.3",
+    "@radix-ui/react-toggle-group": "^1.0.5",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.0",
+    "immer": "^10.0.3",
+    "lucide-react": "^0.427.0",
+    "prism-react-renderer": "^2.3.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.2.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@figma/eslint-plugin-figma-plugins": "^0.16.1",
+    "@figma/plugin-typings": "^1.87.0",
+    "@testing-library/jest-dom": "^6.4.2",
+    "@testing-library/react": "^14.2.1",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/node": "^20.11.30",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^6.20.0",
+    "@typescript-eslint/parser": "^6.20.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.17",
+    "concurrently": "^8.2.2",
+    "esbuild": "^0.20.2",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.34.1",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "jsdom": "^24.0.0",
+    "jszip": "^3.10.1",
+    "postcss": "^8.4.35",
+    "rimraf": "^5.0.5",
+    "tailwindcss": "^3.4.3",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.8",
+    "vitest": "^1.5.0"
+  },
+  "eslintConfig": {
+    "extends": [
+      "eslint:recommended",
+      "plugin:@typescript-eslint/recommended",
+      "plugin:@figma/figma-plugins/recommended",
+      "plugin:react/recommended",
+      "plugin:react-hooks/recommended"
+    ],
+    "parser": "@typescript-eslint/parser",
+    "parserOptions": {
+      "project": "./tsconfig.json",
+      "tsconfigRootDir": ".",
+      "ecmaVersion": "latest",
+      "sourceType": "module"
+    },
+    "plugins": [
+      "react",
+      "react-hooks"
+    ],
+    "settings": {
+      "react": {
+        "version": "detect"
+      }
+    },
+    "root": true,
+    "rules": {
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          "argsIgnorePattern": "^_",
+          "varsIgnorePattern": "^_",
+          "caughtErrorsIgnorePattern": "^_"
+        }
+      ],
+      "react/react-in-jsx-scope": "off"
+    }
+  }
+}
