@@ -3,8 +3,7 @@ import type { ManualTokenGroup, PluginSettings, TokenTreeNode } from '@/shared/t
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
 import { ScrollArea } from '../ui/scroll-area';
 import { Button } from '../ui/button';
-import { TokenTree } from './TokenTree';
-import { ReorderableCollections } from './ReorderableCollections';
+import { SelectSource } from './SelectSource';
 import { ManualTokenModal } from './ManualTokenModal';
 import { useAppDispatch, useAppState, usePluginBridge } from '@/ui/state/app-state';
 import { collectSelectableIds, useTokenTreeWithSelection } from '@/ui/state/selectors';
@@ -97,7 +96,6 @@ export const AssetSidebar: React.FC = () => {
   );
 
   const isVariablesView = activeSource === 'variables';
-  const collectionNodes = tree.filter((item) => item.node.type === 'collection');
 
   return (
     <aside className="flex h-full min-h-0 w-full flex-col overflow-hidden border-r border-slate-900/60 bg-slate-950">
@@ -135,22 +133,12 @@ export const AssetSidebar: React.FC = () => {
   <ScrollArea className="flex-1 min-h-0">
         <div className="space-y-2 px-4 pb-4">
           {tree.length ? (
-            isVariablesView && collectionNodes.length > 0 ? (
-              <ReorderableCollections
-                items={collectionNodes}
-                onToggleSelection={updateSelection}
-                onReorder={handleCollectionReorder}
-                renderChildren={(item) =>
-                  item.children && item.children.length > 0 ? (
-                    <div className="pl-6 mt-0.5">
-                      <TokenTree nodes={item.children} level={1} onToggleSelection={updateSelection} />
-                    </div>
-                  ) : null
-                }
-              />
-            ) : (
-              <TokenTree nodes={tree} onToggleSelection={updateSelection} />
-            )
+            <SelectSource
+              items={tree}
+              isDraggable={isVariablesView}
+              onToggleSelection={updateSelection}
+              onReorder={isVariablesView ? handleCollectionReorder : undefined}
+            />
           ) : (
             <div className="rounded-lg border border-dashed border-slate-800 bg-slate-900/40 p-4 text-center text-xs text-slate-500">
               No {activeSource} found. Try importing manual tokens or ensure your Figma document has {activeSource}.
