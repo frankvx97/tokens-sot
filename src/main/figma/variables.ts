@@ -49,16 +49,14 @@ export async function loadVariableTree(options: LoadVariableTreeOptions = {}): P
       return indexA - indexB;
     });
 
-  const collectionsById = new Map<string, VariableCollection>(
-    sortedCollections.map((collection: VariableCollection) => [collection.id, collection])
-  );
-  const groupedByCollection = new Map<string, VariableGroupNode>();
   const variablesById = new Map<string, FigmaVariable>(
     variables.map((variable: FigmaVariable) => [variable.id, variable])
   );
 
-  sortedCollections.forEach((collection: VariableCollection) => {
-    groupedByCollection.set(collection.id, {
+  const result: TokenTreeNode[] = [];
+
+  for (const collection of sortedCollections) {
+    const collectionNode: TokenTreeNode = {
       id: `collection:${collection.id}`,
       key: collection.id,
       name: collection.name,
@@ -68,32 +66,62 @@ export async function loadVariableTree(options: LoadVariableTreeOptions = {}): P
       path: [collection.name],
       children: [],
       collapsed: true
-    });
-  });
+    };
 
-    // Process variables in the order defined by collection.variableIds to preserve designer's ordering
-    for (const collection of sortedCollections) {
-      const root = groupedByCollection.get(collection.id);
-      if (!root) continue;
+    const isSingleMode = collection.modes.length === 1;
 
-      // Use collection.variableIds array to maintain Figma panel order
+    if (isSingleMode) {
+      // Single mode: put tokens directly under the collection (no mode-level node)
+      const mode = collection.modes[0];
       for (const variableId of collection.variableIds) {
         const variable = variablesById.get(variableId);
         if (!variable) continue;
 
         const segments = normalizeName(variable.name);
-        const modes = includeValues
-          ? await buildVariableModes(variable, collection, variablesById)
+        const modeValue = includeValues
+          ? await buildSingleModeValue(variable, mode, variablesById)
           : undefined;
-        const tokenNode = createTokenNode(variable, collection.name, segments, modes);
-        insertToken(root, segments, tokenNode);
+
+        const tokenNode = createTokenNode(variable, collection.name, segments, modeValue ? [modeValue] : undefined);
+        insertToken(collectionNode as VariableGroupNode, segments, tokenNode, collection.name);
+      }
+    } else {
+      // Multiple modes: create a mode node for each mode
+      for (const mode of collection.modes) {
+        const modeNode: TokenTreeNode = {
+          id: `mode:${collection.id}:${mode.modeId}`,
+          key: `mode:${collection.id}:${mode.modeId}`,
+          name: mode.name,
+          type: 'mode',
+          sourceType: 'variable',
+          selectable: true,
+          path: [collection.name, mode.name],
+          children: [],
+          collapsed: true,
+          modeId: mode.modeId,
+          modeName: mode.name
+        };
+
+        for (const variableId of collection.variableIds) {
+          const variable = variablesById.get(variableId);
+          if (!variable) continue;
+
+          const segments = normalizeName(variable.name);
+          const modeValue = includeValues
+            ? await buildSingleModeValue(variable, mode, variablesById)
+            : undefined;
+
+          const tokenNode = createTokenNode(variable, collection.name, segments, modeValue ? [modeValue] : undefined);
+          insertToken(modeNode as VariableGroupNode, segments, tokenNode, collection.name);
+        }
+
+        collectionNode.children!.push(modeNode);
       }
     }
 
-    // Return collections in their manually specified order
-    const result = sortedCollections
-      .map((collection) => groupedByCollection.get(collection.id))
-      .filter((node): node is VariableGroupNode => node !== undefined);
+    result.push(collectionNode);
+  }
+
     console.log(`Variable tree loaded successfully with ${result.length} collections`);
     return result;
   } catch (error) {
@@ -145,12 +173,12 @@ function createTokenNode(
   } satisfies TokenTreeNode;
 }
 
-function insertToken(root: VariableGroupNode, segments: string[], token: TokenTreeNode) {
+function insertToken(root: VariableGroupNode, segments: string[], token: TokenTreeNode, collectionName: string) {
   let current = root as VariableGroupNode;
   const groupSegments = segments.slice(0, -1);
 
   groupSegments.forEach((segment, index) => {
-    const currentPath = [root.name, ...groupSegments.slice(0, index + 1)];
+    const currentPath = [collectionName, root.name, ...groupSegments.slice(0, index + 1)];
     const existing = current.children.find((child) => child.type === 'group' && child.name === segment) as
       | VariableGroupNode
       | undefined;
@@ -199,6 +227,20 @@ function inferVariableKind(variable: FigmaVariable): TokenKind {
   if (variable.resolvedType === 'STRING') return 'custom';
   if (variable.resolvedType === 'BOOLEAN') return 'custom';
   return 'custom';
+}
+
+async function buildSingleModeValue(
+  variable: FigmaVariable,
+  mode: VariableMode,
+  variablesById: Map<string, FigmaVariable>
+): Promise<TokenModeValue> {
+  const { value, aliasOf } = await resolveVariableValue(variable, mode.modeId, new Set(), variablesById);
+  return {
+    modeId: mode.modeId,
+    modeName: mode.name,
+    value,
+    aliasOf
+  } satisfies TokenModeValue;
 }
 
 async function buildVariableModes(

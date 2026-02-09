@@ -1,10 +1,9 @@
 import * as React from 'react';
-import type { ManualTokenGroup, PluginSettings, TokenTreeNode } from '@/shared/types';
+import type { PluginSettings, TokenTreeNode } from '@/shared/types';
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
 import { ScrollArea } from '../ui/scroll-area';
 import { Button } from '../ui/button';
 import { SelectSource } from './SelectSource';
-import { ManualTokenModal } from './ManualTokenModal';
 import { useAppDispatch, useAppState, usePluginBridge } from '@/ui/state/app-state';
 import { collectSelectableIds, useTokenTreeWithSelection } from '@/ui/state/selectors';
 
@@ -24,7 +23,6 @@ export const AssetSidebar: React.FC = () => {
   const state = useAppState();
   const dispatch = useAppDispatch();
   const bridge = usePluginBridge();
-  const [manualOpen, setManualOpen] = React.useState(false);
 
   const tokenCount = React.useMemo(
     () => tree.reduce((acc, item) => acc + countTokens(item.node), 0),
@@ -71,14 +69,7 @@ export const AssetSidebar: React.FC = () => {
     [bridge, dispatch, state.settings]
   );
 
-  const handleManualSubmit = React.useCallback(
-    (groups: ManualTokenGroup[]) => {
-      const nextGroups = [...state.settings.manualSources, ...groups];
-      dispatch({ type: 'SET_MANUAL_SOURCES', payload: nextGroups });
-      bridge.send({ type: 'persist-manual-sources', payload: nextGroups });
-    },
-    [bridge, dispatch, state.settings.manualSources]
-  );
+
 
   const handleCollectionReorder = React.useCallback(
     (newOrder: string[]) => {
@@ -93,6 +84,13 @@ export const AssetSidebar: React.FC = () => {
       });
     },
     [bridge, dispatch, state.settings]
+  );
+
+  const handlePreviewTarget = React.useCallback(
+    (name: string) => {
+      dispatch({ type: 'SET_PREVIEW_TARGET', payload: { id: name, name } });
+    },
+    [dispatch]
   );
 
   const isVariablesView = activeSource === 'variables';
@@ -138,6 +136,7 @@ export const AssetSidebar: React.FC = () => {
               isDraggable={isVariablesView}
               onToggleSelection={updateSelection}
               onReorder={isVariablesView ? handleCollectionReorder : undefined}
+              onPreviewTarget={handlePreviewTarget}
             />
           ) : (
             <div className="rounded-lg border border-dashed border-slate-800 bg-slate-900/40 p-4 text-center text-xs text-slate-500">
@@ -147,25 +146,33 @@ export const AssetSidebar: React.FC = () => {
         </div>
       </ScrollArea>
 
-      {/* Bottom Actions */}
+      {/* Credits Section */}
       <div className="border-t border-slate-800 px-4 py-3">
-        <Button
-          variant="outline"
-          className="w-full justify-start gap-2"
-          onClick={() => setManualOpen(true)}
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Add Manual
-        </Button>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-slate-400">
+            Made with love from 🇸🇻 by{' '}
+            <a
+              href="https://www.linkedin.com/in/frank-px/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300 transition-colors underline"
+            >
+              Franklin Perez
+            </a>
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 shrink-0"
+            onClick={() => window.open('https://tally.so/r/gDMqyN', '_blank')}
+            title="Send feedback"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </Button>
+        </div>
       </div>
-
-      <ManualTokenModal
-        open={manualOpen}
-        onClose={() => setManualOpen(false)}
-        onSubmit={handleManualSubmit}
-      />
     </aside>
   );
 };

@@ -38,8 +38,15 @@ export function toCasing(str: string, style: CasingStyle): string {
  * Split a string into words, handling various formats
  */
 function splitIntoWords(str: string): string[] {
+  // First, sanitize special characters that can cause syntax errors
+  // Replace parentheses, brackets, and other special chars with separators
+  const sanitized = str
+    .replace(/[()[\]{}]/g, '-') // Replace brackets/parens with hyphens
+    .replace(/[<>|\\@#$%^&*+=`~"':;,?.!]/g, '') // Remove other special chars
+    .trim();
+  
   // Handle different separators: spaces, hyphens, underscores, slashes
-  return str
+  return sanitized
     .replace(/([a-z])([A-Z])/g, '$1 $2') // camelCase -> camel Case
     .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2') // ABCDef -> ABC Def
     .split(/[\s\-_/]+/) // Split on separators

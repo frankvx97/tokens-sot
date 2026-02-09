@@ -17,6 +17,8 @@ export interface TokenSection {
 export interface ExportChunk {
   fileName: string;
   sections: TokenSection[];
+  /** Whether the mode is already encoded in the file name (separate-mode files) */
+  modeInFileName?: boolean;
 }
 
 export interface BuildContext {

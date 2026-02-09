@@ -49,22 +49,15 @@ const FORMAT_EXTENSIONS: Record<TokenFormat, string> = {
   less: 'less'
 };
 
-function selectModes(token: NormalizedToken, includeAllModes: boolean): TokenModeValue[] {
-  if (!token.modes?.length) {
-    return [];
-  }
-
-  if (includeAllModes) {
-    return token.modes;
-  }
-
-  return token.modes.slice(0, 1);
-}
-
 function ensureCollectionName(token: NormalizedToken): string {
   return token.collection?.trim() || 'Uncategorized';
 }
 
+/**
+ * Build token sections from the selected tokens.
+ * With the new mode-per-branch tree, each token has exactly one mode value.
+ * Tokens are grouped by collection + mode.
+ */
 export function buildTokenSections(
   tokens: NormalizedToken[],
   options: ExportOptions,
@@ -72,43 +65,34 @@ export function buildTokenSections(
 ): TokenSection[] {
   if (!tokens.length) return [];
 
-  const grouped = new Map<string, NormalizedToken[]>();
+  // Group by collection name, then by mode
+  const grouped = new Map<string, Map<string, { modeId: string; modeName: string; tokens: NormalizedToken[] }>>();
 
   tokens.forEach((token) => {
     const collectionName = ensureCollectionName(token);
     if (!grouped.has(collectionName)) {
-      grouped.set(collectionName, []);
+      grouped.set(collectionName, new Map());
     }
-    grouped.get(collectionName)!.push(token);
+    const collectionMap = grouped.get(collectionName)!;
+
+    // Each token now has exactly one mode (from the mode-branched tree)
+    const mode = token.modes[0];
+    if (!mode) return;
+
+    const modeKey = mode.modeId;
+    if (!collectionMap.has(modeKey)) {
+      collectionMap.set(modeKey, { modeId: mode.modeId, modeName: mode.modeName, tokens: [] });
+    }
+    collectionMap.get(modeKey)!.tokens.push(token);
   });
 
   const sections: TokenSection[] = [];
 
-  grouped.forEach((collectionTokens, collectionName) => {
-    const modeMap = new Map<string, { id: string; name: string }>();
-
-    collectionTokens.forEach((token) => {
-      selectModes(token, options.includeAllModes).forEach((mode) => {
-        if (!mode?.value && !mode?.aliasOf) return;
-        if (!modeMap.has(mode.modeId)) {
-          modeMap.set(mode.modeId, { id: mode.modeId, name: mode.modeName });
-        }
-      });
-    });
-
-    // If no modes were added (e.g., tokens missing values), fall back to the first available mode on first token
-    if (!modeMap.size) {
-      const fallbackToken = collectionTokens[0];
-      const fallbackMode = fallbackToken?.modes?.[0];
-      if (fallbackMode) {
-        modeMap.set(fallbackMode.modeId, { id: fallbackMode.modeId, name: fallbackMode.modeName });
-      }
-    }
-
+  grouped.forEach((modeMap, collectionName) => {
     modeMap.forEach((modeInfo) => {
-      const entries = collectionTokens
+      const entries = modeInfo.tokens
         .map((token) => {
-          const mode = token.modes.find((item) => item.modeId === modeInfo.id) ?? token.modes[0];
+          const mode = token.modes[0];
           if (!mode?.value && !mode?.aliasOf) return null;
           const aliasTarget = !options.ignoreAliases && mode.aliasOf ? tokenLookup.get(mode.aliasOf) ?? null : null;
           return {
@@ -121,10 +105,10 @@ export function buildTokenSections(
 
       if (entries.length) {
         sections.push({
-          id: `${collectionName}::${modeInfo.id}`,
+          id: `${collectionName}::${modeInfo.modeId}`,
           collectionName,
-          modeId: modeInfo.id,
-          modeName: modeInfo.name,
+          modeId: modeInfo.modeId,
+          modeName: modeInfo.modeName,
           entries
         });
       }
@@ -156,7 +140,8 @@ export function buildExportChunks(
     return [
       {
         fileName: buildFileName('tokens', format),
-        sections
+        sections,
+        modeInFileName: false
       }
     ];
   }
@@ -174,15 +159,19 @@ export function buildExportChunks(
   grouped.forEach((collectionSections, collectionName) => {
     if (options.separateModes) {
       collectionSections.forEach((section) => {
+        // Only add mode suffix to filename when the collection has multiple modes
+        const effectiveModeName = collectionSections.length > 1 ? section.modeName : null;
         chunks.push({
-          fileName: buildCollectionFileName(collectionName, section.modeName, format),
-          sections: [section]
+          fileName: buildCollectionFileName(collectionName, effectiveModeName, format),
+          sections: [section],
+          modeInFileName: effectiveModeName !== null
         });
       });
     } else {
       chunks.push({
         fileName: buildCollectionFileName(collectionName, null, format),
-        sections: collectionSections
+        sections: collectionSections,
+        modeInFileName: false
       });
     }
   });

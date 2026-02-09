@@ -58,7 +58,34 @@ const AppShell: FC = () => {
     }
   }, [selectedTokens, selectedFormat, state.settings.exportOptions, tokenLookup]);
 
-  const previewCode = exportArtifacts[0]?.contents ?? '/* Tokens - Preview */\n/* Select tokens on the left to generate code snippets. */';
+  // Find the artifact to preview based on previewTargetName (for multi-file mode)
+  const previewArtifact = useMemo(() => {
+    if (!exportArtifacts.length) return null;
+    
+    const { previewTargetName } = state;
+    const isMultiFileMode = state.settings.exportOptions.exportFileStrategy === 'multiple';
+    
+    // In multi-file mode with a target selected, find the matching artifact
+    if (isMultiFileMode && previewTargetName && exportArtifacts.length > 1) {
+      // Try matching by collection name first
+      const byCollection = exportArtifacts.find(
+        (artifact) => artifact.collectionName === previewTargetName
+      );
+      if (byCollection) return byCollection;
+
+      // Try matching by filename containing the target name (for mode-level selection)
+      const nameSlug = previewTargetName.toLowerCase().replace(/[^a-z0-9]+/gi, '-');
+      const byFileName = exportArtifacts.find(
+        (artifact) => artifact.fileName.toLowerCase().includes(nameSlug)
+      );
+      if (byFileName) return byFileName;
+    }
+    
+    // Default to first artifact
+    return exportArtifacts[0];
+  }, [exportArtifacts, state.previewTargetName, state.settings.exportOptions.exportFileStrategy]);
+
+  const previewCode = previewArtifact?.contents ?? '/* Tokens - Preview */\n/* Select tokens on the left to generate code snippets. */';
 
   const fallbackCopyText = (text: string) => {
     return new Promise<void>((resolve, reject) => {
@@ -93,8 +120,8 @@ const AppShell: FC = () => {
   };
 
   const handleCopy = async () => {
-    if (!exportArtifacts.length) return;
-    const contents = exportArtifacts[0].contents;
+    if (!previewArtifact) return;
+    const contents = previewArtifact.contents;
 
     try {
       await copyTextToClipboard(contents);
@@ -112,17 +139,38 @@ const AppShell: FC = () => {
 
   const handleDownload = async () => {
     if (!exportArtifacts.length) return;
-    if (exportArtifacts.length === 1) {
-      const artifact = exportArtifacts[0];
-      const blob = new Blob([artifact.contents], { type: 'text/plain' });
-      triggerFileDownload(blob, artifact.fileName);
-      return;
+    try {
+      if (exportArtifacts.length === 1) {
+        const artifact = exportArtifacts[0];
+        const blob = new Blob([artifact.contents], { type: 'text/plain' });
+        triggerFileDownload(blob, artifact.fileName);
+      } else {
+        const zip = new JSZip();
+        exportArtifacts.forEach((artifact) => { zip.file(artifact.fileName, artifact.contents); });
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const zipName = `tokens-${selectedFormat}.zip`;
+        triggerFileDownload(zipBlob, zipName);
+      }
+      // Delay notification so it appears after the native save dialog closes
+      const fileCount = exportArtifacts.length;
+      setTimeout(() => {
+        bridge.send({
+          type: 'show-notification',
+          payload: {
+            message: `Tokens exported — ${fileCount} file${fileCount > 1 ? 's' : ''} saved`
+          }
+        });
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to download tokens:', error);
+      bridge.send({
+        type: 'show-notification',
+        payload: {
+          message: 'Export failed. Please try again.',
+          error: true
+        }
+      });
     }
-    const zip = new JSZip();
-    exportArtifacts.forEach((artifact) => { zip.file(artifact.fileName, artifact.contents); });
-    const zipBlob = await zip.generateAsync({ type: 'blob' });
-    const zipName = `tokens-${selectedFormat}.zip`;
-    triggerFileDownload(zipBlob, zipName);
   };
 
   const triggerFileDownload = (blob: Blob, fileName: string) => {
@@ -153,6 +201,9 @@ const AppShell: FC = () => {
           <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-900/40 px-4 py-3">
             <div className="flex items-center gap-3">
               <span className="text-xs font-medium uppercase tracking-wider text-slate-400">Preview</span>
+              {previewArtifact && exportArtifacts.length > 1 && (
+                <span className="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400">{previewArtifact.fileName}</span>
+              )}
               <FormatSelector value={selectedFormat} onChange={setSelectedFormat} />
             </div>
             <div className="flex items-center gap-2">
@@ -166,10 +217,16 @@ const AppShell: FC = () => {
             </div>
           </header>
           <section className="min-h-0 flex-1 overflow-hidden bg-slate-950">
-            <div className="h-full overflow-auto p-4">
-              <Highlight theme={themes.nightOwl} code={previewCode} language={getPrismLanguage(selectedFormat)}>
-                {({ className, style, tokens, getLineProps, getTokenProps }) => (
-                  <pre className={`${className} font-mono text-sm leading-relaxed`} style={style}>
+            <Highlight theme={themes.nightOwl} code={previewCode} language={getPrismLanguage(selectedFormat)}>
+              {({ className, style, tokens, getLineProps, getTokenProps }) => (
+                <div
+                  className="h-full overflow-auto p-4"
+                  style={{ backgroundColor: style.backgroundColor, color: style.color }}
+                >
+                  <pre
+                    className={`${className} min-h-full w-full bg-transparent font-mono text-sm leading-relaxed`}
+                    style={{ color: style.color }}
+                  >
                     {tokens.map((line, i) => (
                       <div key={i} {...getLineProps({ line })}>
                         {line.map((token, key) => (
@@ -178,12 +235,12 @@ const AppShell: FC = () => {
                       </div>
                     ))}
                   </pre>
-                )}
-              </Highlight>
-            </div>
+                </div>
+              )}
+            </Highlight>
           </section>
           <footer className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-800 bg-slate-900/40 px-4 py-3">
-            <button onClick={handleCopy} disabled={!exportArtifacts.length} className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/60 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
+            <button onClick={handleCopy} disabled={!previewArtifact} className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/60 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
               {isCopied ? (
                 <>
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

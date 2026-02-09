@@ -201,12 +201,6 @@ export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose 
             {/* Advanced Options */}
             <SettingsSection title="Advanced Options">
               <Checkbox
-                label="Include All Modes"
-                description="Export all variable modes, not just the default mode"
-                checked={localSettings.includeAllModes}
-                onChange={(checked) => updateSetting('includeAllModes', checked)}
-              />
-              <Checkbox
                 label="Separate Modes into Files"
                 description="Create separate files for each mode when using multiple file strategy"
                 checked={localSettings.separateModes}
@@ -217,24 +211,6 @@ export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose 
                 description="Export resolved values instead of variable references"
                 checked={localSettings.ignoreAliases}
                 onChange={(checked) => updateSetting('ignoreAliases', checked)}
-              />
-              <Checkbox
-                label="Use Root Alias"
-                description="Reference tokens from root scope when aliasing"
-                checked={localSettings.useRootAlias}
-                onChange={(checked) => updateSetting('useRootAlias', checked)}
-              />
-              <Checkbox
-                label="Add Fallback Values"
-                description="Include fallback values for aliased tokens"
-                checked={localSettings.addFallback}
-                onChange={(checked) => updateSetting('addFallback', checked)}
-              />
-              <Checkbox
-                label="Include Index File"
-                description="Generate an index file that exports all token files"
-                checked={localSettings.includeIndexFile}
-                onChange={(checked) => updateSetting('includeIndexFile', checked)}
               />
             </SettingsSection>
           </div>

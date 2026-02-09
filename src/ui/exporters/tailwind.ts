@@ -1,10 +1,10 @@
 import type { ExportOptions } from '@/shared/types';
 import type { TokenSection, TokenSectionEntry } from './types';
 import { toCasing } from '../utils/casing';
-import { formatColor } from '../utils/color';
+import { formatColor, formatCompositeColor } from '../utils/color';
 import { pxToRem } from '../utils/units';
 
-export function renderTailwind(sections: TokenSection[], options: ExportOptions): string {
+export function renderTailwind(sections: TokenSection[], options: ExportOptions, _modeInFileName?: boolean): string {
   if (!sections.length) {
     return `// No tokens selected\nmodule.exports = {\n  theme: {\n    extend: {},\n  },\n};\n`;
   }
@@ -61,6 +61,7 @@ function categorizeEntries(sections: TokenSection[]): CategorizedEntries {
       const payload = { label, entry } satisfies SectionEntryWithLabel;
       switch (entry.token.kind) {
         case 'color':
+        case 'gradient':
           bucket.colors.push(payload);
           break;
         case 'number':
@@ -123,8 +124,22 @@ function formatColorPayload(entry: TokenSectionEntry, options: ExportOptions): s
     const aliasKey = generateTailwindKey(entry.aliasTarget);
     return `'@alias ${aliasKey}'`;
   }
-  if (entry.mode.value?.type !== 'color') return null;
-  return `'${formatColor(entry.mode.value.value, options.color)}'`;
+  if (entry.mode.value?.type === 'color') {
+    return `'${formatColor(entry.mode.value.value, options.color)}'`;
+  }
+  if (entry.mode.value?.type === 'gradient') {
+    // Tailwind doesn't have built-in gradient colors, so we need to use arbitrary values
+    // For now, we'll just format as a string that can be used with arbitrary values
+    const stops = entry.mode.value.value
+      .map((stop) => `${formatColor(stop.color, options.color)} ${Math.round(stop.position * 100)}%`)
+      .join(', ');
+    const angle = entry.mode.value.gradientAngle ?? 180;
+    return `'linear-gradient(${angle}deg, ${stops})'`;
+  }
+  if (entry.mode.value?.type === 'compositeColor') {
+    return `'${formatCompositeColor(entry.mode.value.value, options.color)}'`;
+  }
+  return null;
 }
 
 function formatSpacingPayload(entry: TokenSectionEntry, useRem: boolean): string | null {

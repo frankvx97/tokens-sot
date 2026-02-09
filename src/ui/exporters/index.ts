@@ -10,7 +10,7 @@ import { renderJSON } from './json';
 import { renderLess } from './less';
 import { renderStylus } from './stylus';
 
-type FormatRenderer = (sections: TokenSection[], options: ExportOptions) => string;
+type FormatRenderer = (sections: TokenSection[], options: ExportOptions, modeInFileName?: boolean) => string;
 
 const RENDERERS: Record<TokenFormat, FormatRenderer> = {
 	css: renderCSS,
@@ -38,7 +38,9 @@ export function buildExportArtifacts({ tokens, format, options, tokenLookup }: B
 	return chunks.map((chunk) => ({
 		fileName: chunk.fileName,
 		format,
-		contents: renderer(chunk.sections, options)
+		contents: renderer(chunk.sections, options, chunk.modeInFileName),
+		// Include collection name for multi-file exports to enable preview targeting
+		collectionName: chunk.sections[0]?.collectionName
 	}));
 }
 

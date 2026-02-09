@@ -23,6 +23,10 @@ export interface AppState {
     code: string;
     message: string;
   };
+  /** ID of the collection/group currently selected for preview in multi-file mode */
+  previewTargetId?: string;
+  /** Name of the collection/group for matching with export artifacts */
+  previewTargetName?: string;
 }
 
 const defaultExportOptions: ExportOptions = {
@@ -76,6 +80,7 @@ export type AppAction =
   | { type: 'SET_MANUAL_SOURCES'; payload: PluginSettings['manualSources'] }
   | { type: 'SET_COLLECTION_ORDER'; payload: string[] }
   | { type: 'SET_SELECTED_MODE'; payload: string | undefined }
+  | { type: 'SET_PREVIEW_TARGET'; payload: { id: string; name: string } | undefined }
   | { type: 'EXPORT_STATUS'; payload: AppState['exportStatus'] }
   | { type: 'EXPORT_SUMMARY'; payload: AppState['lastExportSummary'] }
   | { type: 'ERROR'; payload: AppState['lastError'] | undefined };
@@ -151,6 +156,12 @@ function appReducer(state: AppState, action: AppAction): AppState {
           ...state.settings,
           selectedModeId: action.payload
         }
+      };
+    case 'SET_PREVIEW_TARGET':
+      return {
+        ...state,
+        previewTargetId: action.payload?.id,
+        previewTargetName: action.payload?.name
       };
     case 'EXPORT_STATUS':
       return {

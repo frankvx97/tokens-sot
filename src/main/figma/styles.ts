@@ -175,41 +175,93 @@ function toStyleValue(style: BaseStyle, kind: TokenKind) {
 }
 
 function convertPaintStyle(style: PaintStyle) {
-  const paint = style.paints[0];
-  if (!paint) {
+  const paints = style.paints.filter((p) => p.visible !== false);
+  
+  if (paints.length === 0) {
     return null;
   }
-  if (paint.type === 'SOLID') {
-    return {
-      type: 'color',
-      value: {
-        r: paint.color.r,
-        g: paint.color.g,
-        b: paint.color.b,
-        a: paint.opacity ?? 1
-      }
-    } as NormalizedToken['modes'][number]['value'];
-  }
-  if (paint.type === 'GRADIENT_LINEAR' || paint.type === 'GRADIENT_RADIAL' || paint.type === 'GRADIENT_ANGULAR' || paint.type === 'GRADIENT_DIAMOND') {
-    const gradient = paint as GradientPaint;
-    return {
-      type: 'gradient',
-      gradientType: mapGradientPaintType(gradient.type),
-      value: gradient.gradientStops.map((stop) => ({
-        position: stop.position,
-        color: {
-          r: stop.color.r,
-          g: stop.color.g,
-          b: stop.color.b,
-          a: stop.color.a
+
+  // Single paint - use existing format for backward compatibility
+  if (paints.length === 1) {
+    const paint = paints[0];
+    if (paint.type === 'SOLID') {
+      return {
+        type: 'color',
+        value: {
+          r: paint.color.r,
+          g: paint.color.g,
+          b: paint.color.b,
+          a: paint.opacity ?? 1
         }
-      }))
+      } as NormalizedToken['modes'][number]['value'];
+    }
+    if (paint.type === 'GRADIENT_LINEAR' || paint.type === 'GRADIENT_RADIAL' || paint.type === 'GRADIENT_ANGULAR' || paint.type === 'GRADIENT_DIAMOND') {
+      const gradient = paint as GradientPaint;
+      const gradientType = mapGradientPaintType(gradient.type);
+      const angle = gradient.type === 'GRADIENT_LINEAR' ? getLinearGradientAngle(gradient.gradientTransform) : undefined;
+      
+      return {
+        type: 'gradient',
+        gradientType,
+        gradientAngle: angle,
+        value: gradient.gradientStops.map((stop) => ({
+          position: stop.position,
+          color: {
+            r: stop.color.r,
+            g: stop.color.g,
+            b: stop.color.b,
+            a: stop.color.a
+          }
+        }))
+      } as NormalizedToken['modes'][number]['value'];
+    }
+
+    return {
+      type: 'string',
+      value: paint.type
     } as NormalizedToken['modes'][number]['value'];
   }
 
+  // Multiple paints - use composite color format
+  const layers = paints.map((paint) => {
+    if (paint.type === 'SOLID') {
+      return {
+        layerType: 'solid' as const,
+        color: {
+          r: paint.color.r,
+          g: paint.color.g,
+          b: paint.color.b,
+          a: paint.opacity ?? 1
+        }
+      };
+    }
+    
+    if (paint.type === 'GRADIENT_LINEAR' || paint.type === 'GRADIENT_RADIAL' || paint.type === 'GRADIENT_ANGULAR' || paint.type === 'GRADIENT_DIAMOND') {
+      const gradient = paint as GradientPaint;
+      const layerType = mapGradientPaintTypeToLayerType(gradient.type);
+      const angle = gradient.type === 'GRADIENT_LINEAR' ? getLinearGradientAngle(gradient.gradientTransform) : undefined;
+      
+      return {
+        layerType,
+        stops: gradient.gradientStops.map((stop) => ({
+          position: stop.position,
+          color: {
+            r: stop.color.r,
+            g: stop.color.g,
+            b: stop.color.b,
+            a: stop.color.a * (gradient.opacity ?? 1)
+          }
+        })),
+        angle
+      };
+    }
+
+    return null;
+  }).filter((layer): layer is NonNullable<typeof layer> => layer !== null);
+
   return {
-    type: 'string',
-    value: paint.type
+    type: 'compositeColor',
+    value: layers
   } as NormalizedToken['modes'][number]['value'];
 }
 
@@ -226,6 +278,52 @@ function mapGradientPaintType(type: GradientPaint['type']) {
     default:
       return 'LINEAR_GRADIENT';
   }
+}
+
+function mapGradientPaintTypeToLayerType(type: GradientPaint['type']): 'linear-gradient' | 'radial-gradient' | 'angular-gradient' | 'diamond-gradient' {
+  switch (type) {
+    case 'GRADIENT_LINEAR':
+      return 'linear-gradient';
+    case 'GRADIENT_RADIAL':
+      return 'radial-gradient';
+    case 'GRADIENT_ANGULAR':
+      return 'angular-gradient';
+    case 'GRADIENT_DIAMOND':
+      return 'diamond-gradient';
+    default:
+      return 'linear-gradient';
+  }
+}
+
+/**
+ * Extract the angle in degrees from a linear gradient transform matrix.
+ * Figma's gradient transform is a 2x3 matrix: [[a, c, e], [b, d, f]]
+ * The angle can be derived from the rotation component of the matrix.
+ */
+function getLinearGradientAngle(transform: Transform): number {
+  // Transform is [[a, c, e], [b, d, f]]
+  // For a linear gradient, the angle is determined by the direction vector
+  // The gradient flows perpendicular to the line from (0,0) to (1,0) after transformation
+  const [[a, c], [b, d]] = transform;
+  
+  // Calculate angle in radians from the transform matrix
+  // The gradient direction is given by the vector (a, b)
+  let angleRad = Math.atan2(b, a);
+  
+  // Convert to degrees
+  let angleDeg = angleRad * (180 / Math.PI);
+  
+  // Adjust to CSS gradient coordinate system
+  // CSS: 0deg = top, 90deg = right, 180deg = bottom, 270deg = left
+  // Add 90 to convert from standard math angle (0 = right) to CSS angle (0 = top)
+  angleDeg = angleDeg + 90;
+  
+  // Normalize to 0-360 range
+  if (angleDeg < 0) angleDeg += 360;
+  if (angleDeg >= 360) angleDeg -= 360;
+  
+  // Round to 1 decimal place
+  return Math.round(angleDeg * 10) / 10;
 }
 
 function convertTextStyle(style: TextStyle) {

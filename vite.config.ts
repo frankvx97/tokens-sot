@@ -16,12 +16,21 @@ export default defineConfig({
     emptyOutDir: false,
     assetsDir: 'assets',
     sourcemap: true,
+    chunkSizeWarningLimit: 700,
     rollupOptions: {
       input: resolve(__dirname, 'src/ui/index.html'),
       output: {
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash].[ext]'
+        assetFileNames: 'assets/[name]-[hash].[ext]',
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react')) return 'react';
+            if (id.includes('@radix-ui')) return 'radix';
+            if (id.includes('@dnd-kit')) return 'dnd-kit';
+            return 'vendor';
+          }
+        }
       }
     }
   },

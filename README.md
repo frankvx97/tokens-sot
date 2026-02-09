@@ -1,40 +1,67 @@
-Below are the steps to get your plugin running. You can also find instructions at:
+# Tokens SOT
 
-  https://www.figma.com/plugin-docs/plugin-quickstart-guide/
+Bridge your design system and code effortlessly.
 
-This plugin template uses Typescript and NPM, two standard tools in creating JavaScript applications.
+## What is this?
 
-First, download Node.js which comes with NPM. This will allow you to install TypeScript and other
-libraries. You can find the download link here:
+Tokens SOT is a Figma plugin that transforms your design tokens—colors, spacing, typography, shadows, and more—into ready-to-use code. Whether you're working with CSS, Sass, JavaScript, or Tailwind, this plugin speaks your language.
 
-  https://nodejs.org/en/download/
+Think of it as a translator between design and development. You maintain your source of truth in Figma using variables and styles, and Tokens SOT converts them into the format your project needs.
 
-Next, install TypeScript using the command:
+## What it does
 
-  npm install -g typescript
+- **Export design tokens** from Figma variables and styles
+- **Multiple format support**: CSS, Sass, LESS, Stylus, JavaScript, JSON, and Tailwind
+- **Flexible organization**: Export by collection, mode, or customize grouping
+- **Copy or download**: Get your tokens on the clipboard or as files
+- **Stay in sync**: Quickly update your codebase when your design system evolves
 
-Finally, in the directory of your plugin, get the latest type definitions for the plugin API by running:
+Perfect for designers who want to see their design decisions in code, or for teams bridging the gap between design and development.
 
-  npm install --save-dev @figma/plugin-typings
+## Get started
 
-If you are familiar with JavaScript, TypeScript will look very familiar. In fact, valid JavaScript code
-is already valid Typescript code.
+To work with the plugin's source code, you'll need a few tools installed on your computer.
 
-TypeScript adds type annotations to variables. This allows code editors such as Visual Studio Code
-to provide information about the Figma API while you are writing code, as well as help catch bugs
-you previously didn't notice.
+### What you'll need
 
-For more information, visit https://www.typescriptlang.org/
+1. **Node.js** – This is what runs the build process. Download it from [nodejs.org](https://nodejs.org/en/download/)
 
-Using TypeScript requires a compiler to convert TypeScript (code.ts) into JavaScript (code.js)
-for the browser to run.
+2. **A code editor (IDE)** – We recommend [Visual Studio Code](https://code.visualstudio.com/), which works great for editing plugin code, but you could use any IDE you want.
 
-We recommend writing TypeScript code using Visual Studio code:
+### Setting up
 
-1. Download Visual Studio Code if you haven't already: https://code.visualstudio.com/.
-2. Open this directory in Visual Studio Code.
-3. Compile TypeScript to JavaScript: Run the "Terminal > Run Build Task..." menu item,
-    then select "npm: watch". You will have to do this again every time
-    you reopen Visual Studio Code.
+Once you have Node.js installed, open your command line or terminal and navigate to the plugin folder. Then run:
 
-That's it! Visual Studio Code will regenerate the JavaScript file every time you save.
+```
+npm install
+```
+
+This installs everything the plugin needs to run.
+
+### Building the plugin
+
+To build the plugin, run:
+
+```
+npm run build
+```
+
+Or, if you want the plugin to automatically rebuild as you make changes:
+
+1. Open the plugin folder in Visual Studio Code
+2. Go to **Terminal > Run Build Task...**
+3. Select **npm: watch**
+
+Now whenever you save a file, the plugin will automatically rebuild.
+
+### Running in Figma
+
+1. In Figma, go to **Menu > Plugins > Development > Import plugin from manifest...**
+2. Select the `manifest.json` file from this folder
+3. The plugin will appear in your Plugins menu
+
+---
+
+Made with love from 🇸🇻 by [Franklin Perez](https://www.linkedin.com/in/frank-px/).
+
+Help me improve this plugin by providing your feedback by filling this quick  [survey](https://tally.so/r/gDMqyN) 🙏.
