@@ -112,3 +112,58 @@ export function formatColor(rgba: RGBA, format: ColorFormat): string {
       return rgbaToHex(rgba);
   }
 }
+
+/**
+ * Format a gradient string for CSS
+ */
+export function formatGradient(
+  gradientType: 'linear-gradient' | 'radial-gradient' | 'angular-gradient' | 'diamond-gradient',
+  stops: Array<{ position: number; color: RGBA }>,
+  angle: number | undefined,
+  colorFormat: ColorFormat
+): string {
+  // Map gradient types to CSS function names
+  const cssGradientType = gradientType === 'angular-gradient' ? 'conic-gradient' : gradientType;
+  
+  // Format gradient stops
+  const formattedStops = stops
+    .map((stop) => {
+      const color = formatColor(stop.color, colorFormat);
+      return `${color} ${Math.round(stop.position * 100)}%`;
+    })
+    .join(', ');
+
+  // For linear gradients, include the angle
+  if (gradientType === 'linear-gradient' && angle !== undefined) {
+    return `${cssGradientType}(${angle}deg, ${formattedStops})`;
+  }
+
+  // For other gradient types, just use the stops
+  return `${cssGradientType}(${formattedStops})`;
+}
+
+/**
+ * Format a composite color (multi-layer fill) for CSS
+ */
+export function formatCompositeColor(
+  layers: Array<{
+    layerType: 'solid' | 'linear-gradient' | 'radial-gradient' | 'angular-gradient' | 'diamond-gradient';
+    color?: RGBA;
+    stops?: Array<{ position: number; color: RGBA }>;
+    angle?: number;
+  }>,
+  colorFormat: ColorFormat
+): string {
+  return layers
+    .map((layer) => {
+      if (layer.layerType === 'solid' && layer.color) {
+        return formatColor(layer.color, colorFormat);
+      }
+      if (layer.stops) {
+        return formatGradient(layer.layerType as any, layer.stops, layer.angle, colorFormat);
+      }
+      return '';
+    })
+    .filter(Boolean)
+    .join(', ');
+}

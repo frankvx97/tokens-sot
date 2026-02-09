@@ -142,7 +142,7 @@ export function collectSelectableIds(node: TokenTreeNode): string[] {
   }
 
   const childIds = node.children.flatMap((child) => collectSelectableIds(child));
-  if (node.type === 'token' && node.selectable) {
+  if ((node.type === 'token' || node.type === 'mode') && node.selectable) {
     return [node.id, ...childIds];
   }
 
@@ -150,7 +150,8 @@ export function collectSelectableIds(node: TokenTreeNode): string[] {
 }
 
 /**
- * Extract all selected tokens from the state
+ * Extract all selected tokens from the state.
+ * Now handles the collection > mode > group > token hierarchy.
  */
 export function getSelectedTokens(state: AppState): NormalizedToken[] {
   const selectedIds = new Set(state.settings.selectedTokenIds);
@@ -159,6 +160,15 @@ export function getSelectedTokens(state: AppState): NormalizedToken[] {
   // Helper to collect tokens from tree
   function collectTokens(nodes: TokenTreeNode[]) {
     nodes.forEach((node) => {
+      // For mode nodes: if the mode node itself is deselected (none of its children selected),
+      // skip it entirely. If it's partially or fully selected, recurse.
+      if (node.type === 'mode') {
+        // Check if any descendant of this mode is selected
+        const modeIds = collectSelectableIds(node);
+        const anySelected = modeIds.some((id) => selectedIds.has(id));
+        if (!anySelected) return;
+      }
+
       if (node.type === 'token' && node.token && selectedIds.has(node.id)) {
         tokens.push(node.token);
       }
@@ -168,14 +178,13 @@ export function getSelectedTokens(state: AppState): NormalizedToken[] {
     });
   }
 
-  // Collect from active source
-  if (state.settings.activeSource === 'variables') {
-    collectTokens(state.tokens.variables);
-    // Include manual tokens if present
+  // Collect from BOTH sources so download exports everything selected
+  collectTokens(state.tokens.variables);
+  collectTokens(state.tokens.styles);
+  // Include manual tokens if present
+  if (state.settings.manualSources.length) {
     const manualTree = buildManualTree(state.settings.manualSources);
     collectTokens(manualTree);
-  } else {
-    collectTokens(state.tokens.styles);
   }
 
   return tokens;

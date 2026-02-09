@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, ChevronRight } from 'lucide-react';
+import { GripVertical, ChevronRight, Layers } from 'lucide-react';
 import { Checkbox } from '../ui/checkbox';
 import { cn } from '@/ui/utils/cn';
 import type { TokenTreeNode } from '@/shared/types';
@@ -26,7 +26,8 @@ interface SelectSourceItemProps {
   item: WithSelection;
   isDraggable: boolean;
   onToggleSelection: (node: TokenTreeNode, nextState: boolean) => void;
-  onToggleOpen: (id: string) => void;
+  onToggleOpen: (id: string, currentIsOpen: boolean) => void;
+  onPreviewTarget?: (name: string) => void;
   isOpen: boolean;
   level?: number;
   openState: Record<string, boolean>;
@@ -37,6 +38,7 @@ function SelectSourceItem({
   isDraggable,
   onToggleSelection,
   onToggleOpen,
+  onPreviewTarget,
   isOpen,
   level = 0,
   openState
@@ -44,6 +46,7 @@ function SelectSourceItem({
   const { node, selected, partiallySelected } = item;
   const isBranch = Boolean(node.children?.length);
   const isTopLevel = level === 0;
+  const isMode = node.type === 'mode';
 
   // Only use sortable if draggable and top level
   const sortableProps = useSortable({
@@ -73,7 +76,15 @@ function SelectSourceItem({
           isTopLevel ? 'h-12 px-4 gap-2' : 'h-8 px-2 rounded-md',
           isBranch && 'cursor-pointer'
         )}
-        onClick={isBranch ? () => onToggleOpen(node.id) : undefined}
+        onClick={() => {
+          if (isBranch) {
+            onToggleOpen(node.id, isOpen);
+          }
+          // For mode/collection nodes, set preview target when clicked
+          if (onPreviewTarget && (node.type === 'mode' || node.type === 'collection')) {
+            onPreviewTarget(node.name);
+          }
+        }}
       >
         {/* Drag Handle - only visible for draggable top-level items */}
         {isDraggable && isTopLevel && (
@@ -98,9 +109,19 @@ function SelectSourceItem({
           onClick={(e) => e.stopPropagation()}
         />
 
+        {/* Mode icon */}
+        {isMode && (
+          <Layers className="h-3.5 w-3.5 shrink-0 text-slate-500 mr-[12px]" />
+        )}
+
         {/* Label */}
         <div className="flex flex-1 flex-col">
-          <span className="text-sm font-medium text-slate-200">{node.name}</span>
+          <span className={cn(
+            'text-sm font-medium',
+            isMode ? 'text-slate-300' : 'text-slate-200'
+          )}>
+            {node.name}
+          </span>
           {node.description && (
             <span className="text-[11px] text-slate-500 line-clamp-1">{node.description}</span>
           )}
@@ -138,6 +159,7 @@ function SelectSourceItem({
                   isDraggable={false}
                   onToggleSelection={onToggleSelection}
                   onToggleOpen={onToggleOpen}
+                  onPreviewTarget={onPreviewTarget}
                   isOpen={childIsOpen}
                   level={level + 1}
                   openState={openState}
@@ -156,13 +178,15 @@ interface SelectSourceProps {
   isDraggable?: boolean;
   onToggleSelection: (node: TokenTreeNode, nextState: boolean) => void;
   onReorder?: (newOrder: string[]) => void;
+  onPreviewTarget?: (name: string) => void;
 }
 
 export const SelectSource: React.FC<SelectSourceProps> = ({
   items,
   isDraggable = false,
   onToggleSelection,
-  onReorder
+  onReorder,
+  onPreviewTarget
 }) => {
   const [openState, setOpenState] = React.useState<Record<string, boolean>>({});
   const [orderedItems, setOrderedItems] = React.useState(items);
@@ -197,10 +221,12 @@ export const SelectSource: React.FC<SelectSourceProps> = ({
     }
   }, [items, openState]);
 
-  const toggleOpen = React.useCallback((id: string) => {
+  // Fix: toggleOpen now receives the current visual open state to avoid
+  // the bug where !undefined === true doesn't flip a visually-open node
+  const toggleOpen = React.useCallback((id: string, currentIsOpen: boolean) => {
     setOpenState((previous) => ({
       ...previous,
-      [id]: !previous[id]
+      [id]: !currentIsOpen
     }));
   }, []);
 
@@ -235,6 +261,7 @@ export const SelectSource: React.FC<SelectSourceProps> = ({
             isDraggable={isDraggable}
             onToggleSelection={onToggleSelection}
             onToggleOpen={toggleOpen}
+            onPreviewTarget={onPreviewTarget}
             isOpen={isOpen}
             level={0}
             openState={openState}

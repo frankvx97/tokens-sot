@@ -1,6 +1,6 @@
 export type TokenSourceType = 'variable' | 'style' | 'manual';
 
-export type TokenNodeType = 'collection' | 'group' | 'token';
+export type TokenNodeType = 'collection' | 'mode' | 'group' | 'token';
 
 export type TokenKind =
   | 'color'
@@ -23,6 +23,10 @@ export interface TokenTreeNode {
   children?: TokenTreeNode[];
   token?: NormalizedToken;
   collapsed?: boolean;
+  /** Mode ID for mode-type nodes */
+  modeId?: string;
+  /** Mode name for mode-type nodes */
+  modeName?: string;
 }
 
 export interface TokenModeValue<T = TokenValue | null> {
@@ -39,6 +43,7 @@ export type TokenValue =
   | ShadowTokenValue
   | NumberTokenValue
   | GradientTokenValue
+  | CompositeColorTokenValue
   | StringTokenValue
   | BooleanTokenValue;
 
@@ -102,6 +107,20 @@ export interface GradientTokenValue {
     color: RGBA;
   }>;
   gradientType: 'LINEAR_GRADIENT' | 'RADIAL_GRADIENT' | 'ANGULAR_GRADIENT' | 'DIAMOND_GRADIENT';
+  gradientAngle?: number; // Angle in degrees for linear gradients
+}
+
+export interface CompositeColorTokenValue {
+  type: 'compositeColor';
+  value: Array<{
+    layerType: 'solid' | 'linear-gradient' | 'radial-gradient' | 'angular-gradient' | 'diamond-gradient';
+    color?: RGBA;           // for solid fills
+    stops?: Array<{         // for gradient fills
+      position: number;
+      color: RGBA;
+    }>;
+    angle?: number;         // for linear gradients (in degrees)
+  }>;
 }
 
 export interface NormalizedToken {
@@ -204,6 +223,8 @@ export interface ExportArtifact {
   fileName: string;
   contents: string;
   format: TokenFormat;
+  /** Collection name for multi-file exports, used to identify which preview to show */
+  collectionName?: string;
 }
 
 export interface ExportResult {

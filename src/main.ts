@@ -187,7 +187,7 @@ const handler: PluginMessageHandler = async (msg: UIToPluginMessage) => {
       case 'show-notification': {
         const message = msg.payload.message || '';
         if (message) {
-          figma.notify(message, { error: msg.payload.error });
+          figma.notify(message, { timeout: 3000, error: msg.payload.error });
         }
         break;
       }

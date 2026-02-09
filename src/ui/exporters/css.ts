@@ -1,24 +1,26 @@
 import type { ExportOptions } from '@/shared/types';
 import type { TokenSection, TokenSectionEntry } from './types';
 import { toCasing } from '../utils/casing';
-import { formatColor } from '../utils/color';
+import { formatColor, formatGradient, formatCompositeColor } from '../utils/color';
 import { formatWithUnit, formatLineHeight } from '../utils/units';
 import { shouldShowModeNames, buildSectionLabel } from './sections';
 
-export function renderCSS(sections: TokenSection[], options: ExportOptions): string {
+export function renderCSS(sections: TokenSection[], options: ExportOptions, modeInFileName?: boolean): string {
   if (!sections.length) {
     return '/* No tokens selected */\n';
   }
 
   const lines: string[] = [':root {'];
   const showModes = shouldShowModeNames(sections);
+  // Include mode in token name only when modes share the same file
+  const includeModeInName = showModes && !modeInFileName;
 
   sections.forEach((section, sectionIndex) => {
     const label = buildSectionLabel(section, showModes);
     lines.push('');
     lines.push(`  /* ${label} */`);
     section.entries.forEach((entry) => {
-      const declaration = buildCSSDeclaration(entry, options);
+      const declaration = buildCSSDeclaration(entry, options, includeModeInName ? section.modeName : null);
       if (declaration) {
         lines.push(`  ${declaration}`);
       }
@@ -33,19 +35,23 @@ export function renderCSS(sections: TokenSection[], options: ExportOptions): str
   return lines.join('\n');
 }
 
-function buildCSSDeclaration(entry: TokenSectionEntry, options: ExportOptions): string | null {
-  const varName = generateCSSVarName(entry.token, options.casing);
-  const aliasName = entry.aliasTarget ? `var(${generateCSSVarName(entry.aliasTarget, options.casing)})` : null;
+function buildCSSDeclaration(entry: TokenSectionEntry, options: ExportOptions, modeName: string | null): string | null {
+  const varName = generateCSSVarName(entry.token, options.casing, modeName);
+  const aliasName = entry.aliasTarget ? `var(${generateCSSVarName(entry.aliasTarget, options.casing, modeName)})` : null;
   const value = aliasName ?? formatTokenValue(entry.mode.value, options);
   if (!value) return null;
   return `${varName}: ${value};`;
 }
 
-function generateCSSVarName(token: TokenSectionEntry['token'], casing: ExportOptions['casing']): string {
+function generateCSSVarName(token: TokenSectionEntry['token'], casing: ExportOptions['casing'], modeName?: string | null): string {
   const parts: string[] = [];
 
   if (token.collection) {
     parts.push(token.collection);
+  }
+
+  if (modeName) {
+    parts.push(modeName);
   }
 
   if (token.groupPath?.length) {
@@ -90,14 +96,13 @@ function formatTokenValue(
         .join(', ');
     }
     case 'gradient': {
-      const gradientType = value.gradientType === 'LINEAR_GRADIENT' ? 'linear-gradient' : 'radial-gradient';
-      const stops = value.value
-        .map((stop) => {
-          const color = formatColor(stop.color, options.color);
-          return `${color} ${Math.round(stop.position * 100)}%`;
-        })
-        .join(', ');
-      return `${gradientType}(${stops})`;
+      const gradientType = value.gradientType === 'LINEAR_GRADIENT' ? 'linear-gradient' : 
+                           value.gradientType === 'RADIAL_GRADIENT' ? 'radial-gradient' :
+                           value.gradientType === 'ANGULAR_GRADIENT' ? 'conic-gradient' : 'radial-gradient';
+      return formatGradient(gradientType as any, value.value, value.gradientAngle, options.color);
+    }
+    case 'compositeColor': {
+      return formatCompositeColor(value.value, options.color);
     }
     default:
       return null;

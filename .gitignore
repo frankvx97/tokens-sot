@@ -9,3 +9,10 @@ dist/
 dist-types/
 coverage/
 .vite/
+
+# Vibecoding instructions
+.ARCHITECTURE.md
+
+# Backup files
+.ManualTokenModal.tsx.backup
+.IMPROVEMENTS.md

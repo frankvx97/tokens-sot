@@ -1,30 +1,50 @@
 import type { ExportOptions } from '@/shared/types';
 import type { TokenSection, TokenSectionEntry } from './types';
 import { toCasing } from '../utils/casing';
-import { formatColor } from '../utils/color';
+import { formatColor, formatCompositeColor } from '../utils/color';
 import { formatWithUnit } from '../utils/units';
 import { shouldShowModeNames, buildSectionLabel } from './sections';
 
-export function renderJavaScript(sections: TokenSection[], options: ExportOptions): string {
+export function renderJavaScript(sections: TokenSection[], options: ExportOptions, modeInFileName?: boolean): string {
   if (!sections.length) {
     return '// No tokens selected\nexport const tokens = {};\n';
   }
 
-  const lines: string[] = ['export const tokens = {'];
   const showModes = shouldShowModeNames(sections);
+  const useModeKey = showModes && !modeInFileName;
+
+  const lines: string[] = ['export const tokens = {'];
 
   sections.forEach((section) => {
     const label = buildSectionLabel(section, showModes);
-    lines.push(`  // ${label}`);
 
-    section.entries.forEach((entry) => {
-      const property = generateJSKey(entry.token, options.casing);
-      const value = buildJSValue(entry, options);
-      if (!value) return;
-      lines.push(indentValue(`${property}: ${value},`, 1));
-    });
+    if (useModeKey) {
+      // Group under mode key: { "Collection/Mode": { ...tokens } }
+      const sectionKey = toCasing(`${section.collectionName}/${section.modeName}`, options.casing);
+      lines.push(`  // ${label}`);
+      lines.push(`  '${sectionKey}': {`);
 
-    lines.push('');
+      section.entries.forEach((entry) => {
+        const property = generateJSKey(entry.token, options.casing);
+        const value = buildJSValue(entry, options);
+        if (!value) return;
+        lines.push(indentValue(`${property}: ${value},`, 2));
+      });
+
+      lines.push('  },');
+      lines.push('');
+    } else {
+      lines.push(`  // ${label}`);
+
+      section.entries.forEach((entry) => {
+        const property = generateJSKey(entry.token, options.casing);
+        const value = buildJSValue(entry, options);
+        if (!value) return;
+        lines.push(indentValue(`${property}: ${value},`, 1));
+      });
+
+      lines.push('');
+    }
   });
 
   lines.push('};\n');
@@ -119,11 +139,14 @@ function formatTokenValueForJS(
     case 'gradient':
       return {
         type: value.gradientType,
+        angle: value.gradientAngle,
         stops: value.value.map((stop) => ({
           position: stop.position,
           color: formatColor(stop.color, options.color)
         }))
       };
+    case 'compositeColor':
+      return formatCompositeColor(value.value, options.color);
     default:
       return null;
   }
