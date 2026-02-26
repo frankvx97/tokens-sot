@@ -17,12 +17,24 @@ export function renderTailwind(sections: TokenSection[], options: ExportOptions,
   lines.push('  theme: {');
   lines.push('    extend: {');
 
-  renderCategory(lines, 'colors', categorized.colors, (payload) => formatColorPayload(payload.entry, options));
-  renderCategory(lines, 'spacing', categorized.spacing, (payload) => formatSpacingPayload(payload.entry, useRem));
-  renderCategory(lines, 'fontFamily', categorized.fontFamily, (payload) => formatFontFamilyPayload(payload.entry));
-  renderCategory(lines, 'fontSize', categorized.fontSize, (payload) => formatFontSizePayload(payload.entry, useRem));
-  renderCategory(lines, 'fontWeight', categorized.fontWeight, (payload) => formatFontWeightPayload(payload.entry));
-  renderCategory(lines, 'boxShadow', categorized.boxShadow, (payload) => formatShadowPayload(payload.entry));
+  renderCategory(lines, 'colors', categorized.colors, options.includeTopLevelName, (payload) =>
+    formatColorPayload(payload.entry, options, options.includeTopLevelName)
+  );
+  renderCategory(lines, 'spacing', categorized.spacing, options.includeTopLevelName, (payload) =>
+    formatSpacingPayload(payload.entry, useRem, options.includeTopLevelName)
+  );
+  renderCategory(lines, 'fontFamily', categorized.fontFamily, options.includeTopLevelName, (payload) =>
+    formatFontFamilyPayload(payload.entry, options.includeTopLevelName)
+  );
+  renderCategory(lines, 'fontSize', categorized.fontSize, options.includeTopLevelName, (payload) =>
+    formatFontSizePayload(payload.entry, useRem, options.includeTopLevelName)
+  );
+  renderCategory(lines, 'fontWeight', categorized.fontWeight, options.includeTopLevelName, (payload) =>
+    formatFontWeightPayload(payload.entry, options.includeTopLevelName)
+  );
+  renderCategory(lines, 'boxShadow', categorized.boxShadow, options.includeTopLevelName, (payload) =>
+    formatShadowPayload(payload.entry, options.includeTopLevelName)
+  );
 
   lines.push('    },');
   lines.push('  },');
@@ -87,6 +99,7 @@ function renderCategory(
   lines: string[],
   categoryName: string,
   entries: SectionEntryWithLabel[],
+  includeTopLevelName: boolean,
   formatter: (payload: SectionEntryWithLabel) => string | null
 ) {
   if (!entries.length) return;
@@ -97,7 +110,7 @@ function renderCategory(
   grouped.forEach((groupEntries, label) => {
     lines.push(`        // ${label}`);
     groupEntries.forEach((payload) => {
-      const key = generateTailwindKey(payload.entry.token);
+      const key = generateTailwindKey(payload.entry.token, includeTopLevelName);
       const value = formatter(payload);
       if (!value) return;
       lines.push(`        '${key}': ${value},`);
@@ -119,9 +132,9 @@ function groupByLabel(entries: SectionEntryWithLabel[]): Map<string, SectionEntr
   return grouped;
 }
 
-function formatColorPayload(entry: TokenSectionEntry, options: ExportOptions): string | null {
+function formatColorPayload(entry: TokenSectionEntry, options: ExportOptions, includeTopLevelName: boolean): string | null {
   if (entry.aliasTarget) {
-    const aliasKey = generateTailwindKey(entry.aliasTarget);
+    const aliasKey = generateTailwindKey(entry.aliasTarget, includeTopLevelName);
     return `'@alias ${aliasKey}'`;
   }
   if (entry.mode.value?.type === 'color') {
@@ -142,9 +155,9 @@ function formatColorPayload(entry: TokenSectionEntry, options: ExportOptions): s
   return null;
 }
 
-function formatSpacingPayload(entry: TokenSectionEntry, useRem: boolean): string | null {
+function formatSpacingPayload(entry: TokenSectionEntry, useRem: boolean, includeTopLevelName: boolean): string | null {
   if (entry.aliasTarget) {
-    const aliasKey = generateTailwindKey(entry.aliasTarget);
+    const aliasKey = generateTailwindKey(entry.aliasTarget, includeTopLevelName);
     return `'@alias ${aliasKey}'`;
   }
   if (entry.mode.value?.type !== 'number' && entry.mode.value?.type !== 'dimension') return null;
@@ -153,9 +166,9 @@ function formatSpacingPayload(entry: TokenSectionEntry, useRem: boolean): string
   return `'${value}'`;
 }
 
-function formatFontFamilyPayload(entry: TokenSectionEntry): string | null {
+function formatFontFamilyPayload(entry: TokenSectionEntry, includeTopLevelName: boolean): string | null {
   if (entry.aliasTarget) {
-    const aliasKey = generateTailwindKey(entry.aliasTarget);
+    const aliasKey = generateTailwindKey(entry.aliasTarget, includeTopLevelName);
     return `'@alias ${aliasKey}'`;
   }
   if (entry.mode.value?.type !== 'typography') return null;
@@ -163,9 +176,9 @@ function formatFontFamilyPayload(entry: TokenSectionEntry): string | null {
   return `['${fontFamily}']`;
 }
 
-function formatFontSizePayload(entry: TokenSectionEntry, useRem: boolean): string | null {
+function formatFontSizePayload(entry: TokenSectionEntry, useRem: boolean, includeTopLevelName: boolean): string | null {
   if (entry.aliasTarget) {
-    const aliasKey = generateTailwindKey(entry.aliasTarget);
+    const aliasKey = generateTailwindKey(entry.aliasTarget, includeTopLevelName);
     return `'@alias ${aliasKey}'`;
   }
   if (entry.mode.value?.type !== 'typography') return null;
@@ -178,18 +191,18 @@ function formatFontSizePayload(entry: TokenSectionEntry, useRem: boolean): strin
   return `['${sizeValue}', { lineHeight: '${lh}' }]`;
 }
 
-function formatFontWeightPayload(entry: TokenSectionEntry): string | null {
+function formatFontWeightPayload(entry: TokenSectionEntry, includeTopLevelName: boolean): string | null {
   if (entry.aliasTarget) {
-    const aliasKey = generateTailwindKey(entry.aliasTarget);
+    const aliasKey = generateTailwindKey(entry.aliasTarget, includeTopLevelName);
     return `'@alias ${aliasKey}'`;
   }
   if (entry.mode.value?.type !== 'typography') return null;
   return String(entry.mode.value.value.fontWeight);
 }
 
-function formatShadowPayload(entry: TokenSectionEntry): string | null {
+function formatShadowPayload(entry: TokenSectionEntry, includeTopLevelName: boolean): string | null {
   if (entry.aliasTarget) {
-    const aliasKey = generateTailwindKey(entry.aliasTarget);
+    const aliasKey = generateTailwindKey(entry.aliasTarget, includeTopLevelName);
     return `'@alias ${aliasKey}'`;
   }
   if (entry.mode.value?.type !== 'shadow') return null;
@@ -203,8 +216,12 @@ function formatShadowPayload(entry: TokenSectionEntry): string | null {
   return `'${value}'`;
 }
 
-function generateTailwindKey(token: TokenSectionEntry['token']): string {
+function generateTailwindKey(token: TokenSectionEntry['token'], includeTopLevelName: boolean): string {
   const parts: string[] = [];
+
+  if (includeTopLevelName && token.collection) {
+    parts.push(token.collection);
+  }
 
   if (token.groupPath?.length) {
     parts.push(...token.groupPath);

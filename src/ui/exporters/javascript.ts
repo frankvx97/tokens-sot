@@ -25,7 +25,7 @@ export function renderJavaScript(sections: TokenSection[], options: ExportOption
       lines.push(`  '${sectionKey}': {`);
 
       section.entries.forEach((entry) => {
-        const property = generateJSKey(entry.token, options.casing);
+        const property = generateJSKey(entry.token, options.casing, options.includeTopLevelName);
         const value = buildJSValue(entry, options);
         if (!value) return;
         lines.push(indentValue(`${property}: ${value},`, 2));
@@ -37,7 +37,7 @@ export function renderJavaScript(sections: TokenSection[], options: ExportOption
       lines.push(`  // ${label}`);
 
       section.entries.forEach((entry) => {
-        const property = generateJSKey(entry.token, options.casing);
+        const property = generateJSKey(entry.token, options.casing, options.includeTopLevelName);
         const value = buildJSValue(entry, options);
         if (!value) return;
         lines.push(indentValue(`${property}: ${value},`, 1));
@@ -62,7 +62,7 @@ function indentValue(value: string, indentLevel: number): string {
 
 function buildJSValue(entry: TokenSectionEntry, options: ExportOptions): string | null {
   if (entry.aliasTarget) {
-    const aliasKey = generateJSKey(entry.aliasTarget, options.casing);
+    const aliasKey = generateJSKey(entry.aliasTarget, options.casing, options.includeTopLevelName);
     return `'@alias ${aliasKey}'`;
   }
 
@@ -71,10 +71,14 @@ function buildJSValue(entry: TokenSectionEntry, options: ExportOptions): string 
   return formatLiteral(rawValue);
 }
 
-function generateJSKey(token: TokenSectionEntry['token'], casing: ExportOptions['casing']): string {
+function generateJSKey(
+  token: TokenSectionEntry['token'],
+  casing: ExportOptions['casing'],
+  includeTopLevelName: boolean
+): string {
   const parts: string[] = [];
 
-  if (token.collection) {
+  if (includeTopLevelName && token.collection) {
     parts.push(token.collection);
   }
 

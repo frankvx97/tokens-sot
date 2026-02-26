@@ -1,5 +1,5 @@
 import type { BootstrapPayload, ExportResult, ManualTokenGroup, PluginSettings } from './shared/types';
-import type { PluginMessageHandler, UIToPluginMessage } from './shared/messages';
+import type { PluginMessageHandler, PluginWindowState, UIToPluginMessage } from './shared/messages';
 import { loadVariableTree } from './main/figma/variables';
 import { loadStyleTree } from './main/figma/styles';
 
@@ -11,6 +11,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
     color: 'hex',
     unit: 'px',
     exportFileStrategy: 'single',
+    includeTopLevelName: false,
     includeAllModes: true,
     ignoreAliases: false,
     useRootAlias: false,
@@ -23,10 +24,75 @@ const DEFAULT_SETTINGS: PluginSettings = {
   activeSource: 'variables'
 };
 
-// Show the plugin UI - the HTML is loaded from manifest.json's "ui" field
-figma.showUI(__html__, { width: 1080, height: 720, themeColors: true });
+const WINDOW_STORAGE_KEY = 'tokens-sot/window-state';
+const DEFAULT_WINDOW_WIDTH = 1080;
+const DEFAULT_WINDOW_HEIGHT = 720;
+const MIN_WINDOW_WIDTH = 720;
+const MIN_WINDOW_HEIGHT = 520;
+const MAX_WINDOW_WIDTH = 1800;
+const MAX_WINDOW_HEIGHT = 1400;
+const MINIMIZED_WIDTH = 72;
+const MINIMIZED_HEIGHT = 72;
 
 console.log('Plugin UI initialized');
+
+let windowState: PluginWindowState = {
+  width: DEFAULT_WINDOW_WIDTH,
+  height: DEFAULT_WINDOW_HEIGHT,
+  minimized: false
+};
+
+function clampWindowSize(width: number, height: number) {
+  return {
+    width: Math.max(MIN_WINDOW_WIDTH, Math.min(MAX_WINDOW_WIDTH, Math.round(width))),
+    height: Math.max(MIN_WINDOW_HEIGHT, Math.min(MAX_WINDOW_HEIGHT, Math.round(height)))
+  };
+}
+
+async function loadWindowState(): Promise<PluginWindowState> {
+  try {
+    const stored = await figma.clientStorage.getAsync(WINDOW_STORAGE_KEY);
+    if (!stored || typeof stored !== 'object') {
+      return windowState;
+    }
+    const raw = stored as Partial<PluginWindowState>;
+    const clamped = clampWindowSize(
+      typeof raw.width === 'number' ? raw.width : DEFAULT_WINDOW_WIDTH,
+      typeof raw.height === 'number' ? raw.height : DEFAULT_WINDOW_HEIGHT
+    );
+    return {
+      width: clamped.width,
+      height: clamped.height,
+      minimized: Boolean(raw.minimized)
+    };
+  } catch (error) {
+    console.error('Error loading window state:', error);
+    return windowState;
+  }
+}
+
+async function persistWindowState(nextState: PluginWindowState) {
+  try {
+    await figma.clientStorage.setAsync(WINDOW_STORAGE_KEY, nextState);
+  } catch (error) {
+    console.error('Error persisting window state:', error);
+  }
+}
+
+function applyWindowSize(nextState: PluginWindowState) {
+  if (nextState.minimized) {
+    figma.ui.resize(MINIMIZED_WIDTH, MINIMIZED_HEIGHT);
+    return;
+  }
+  figma.ui.resize(nextState.width, nextState.height);
+}
+
+async function setWindowState(nextState: PluginWindowState) {
+  windowState = nextState;
+  applyWindowSize(windowState);
+  await persistWindowState(windowState);
+  figma.ui.postMessage({ type: 'window-state', payload: windowState });
+}
 
 async function loadStoredSettings(): Promise<PluginSettings> {
   console.log('Loading stored settings...');
@@ -77,7 +143,10 @@ async function gatherBootstrapPayload(): Promise<BootstrapPayload> {
       collectionOrder: settings.collectionOrder 
     });
     
-    const styles = await loadStyleTree({ includeValues: true });
+    const styles = await loadStyleTree({
+      includeValues: true,
+      nameOverrides: settings.styleGroupNames ?? {}
+    });
 
     console.log('Bootstrap data loaded:', {
       variablesCount: variables.length,
@@ -151,6 +220,7 @@ const handler: PluginMessageHandler = async (msg: UIToPluginMessage) => {
         console.log('UI is ready, sending bootstrap data...');
         const bootstrap = await gatherBootstrapPayload();
         figma.ui.postMessage({ type: 'bootstrap', payload: bootstrap });
+        figma.ui.postMessage({ type: 'window-state', payload: windowState });
         console.log('Bootstrap data sent to UI');
         break;
       }
@@ -195,6 +265,31 @@ const handler: PluginMessageHandler = async (msg: UIToPluginMessage) => {
         figma.closePlugin();
         break;
       }
+      case 'resize-window': {
+        const clamped = clampWindowSize(msg.payload.width, msg.payload.height);
+        await setWindowState({
+          width: clamped.width,
+          height: clamped.height,
+          minimized: false
+        });
+        break;
+      }
+      case 'toggle-minimize': {
+        if (windowState.minimized) {
+          await setWindowState({
+            ...windowState,
+            minimized: false
+          });
+        } else {
+          const clamped = clampWindowSize(windowState.width, windowState.height);
+          await setWindowState({
+            width: clamped.width,
+            height: clamped.height,
+            minimized: true
+          });
+        }
+        break;
+      }
       default: {
         const neverType: never = msg;
         throw new Error(`Unhandled UI message: ${JSON.stringify(neverType)}`);
@@ -213,4 +308,14 @@ const handler: PluginMessageHandler = async (msg: UIToPluginMessage) => {
   }
 };
 
-figma.ui.onmessage = handler;
+async function initializePlugin() {
+  windowState = await loadWindowState();
+  figma.showUI(__html__, {
+    width: windowState.minimized ? MINIMIZED_WIDTH : windowState.width,
+    height: windowState.minimized ? MINIMIZED_HEIGHT : windowState.height,
+    themeColors: true
+  });
+  figma.ui.onmessage = handler;
+}
+
+void initializePlugin();

@@ -31,35 +31,45 @@ interface StyleGroupNode extends TokenTreeNode {
 
 interface LoadStyleTreeOptions {
   includeValues?: boolean;
+  /** User overrides for style group display names. Key = style root key (e.g. "paint-styles"), Value = custom label */
+  nameOverrides?: Record<string, string>;
 }
 
 export async function loadStyleTree(options: LoadStyleTreeOptions = {}): Promise<TokenTreeNode[]> {
   console.log('Loading style tree...');
   try {
     const includeValues = options.includeValues ?? false;
-    const roots: StyleGroupNode[] = STYLE_ROOTS.map((root) => ({
-      id: `style-root:${root.id}`,
-      key: root.id,
-      name: root.label,
-      type: 'collection',
-      sourceType: 'style',
-      selectable: true,
-      path: [root.label],
-      children: [],
-      collapsed: true
-    }));
+    const nameOverrides = options.nameOverrides ?? {};
+
+    const roots: StyleGroupNode[] = STYLE_ROOTS.map((root) => {
+      const label = nameOverrides[root.id] ?? root.label;
+      return {
+        id: `style-root:${root.id}`,
+        key: root.id,
+        name: label,
+        type: 'collection',
+        sourceType: 'style',
+        selectable: true,
+        path: [label],
+        children: [],
+        collapsed: true
+      };
+    });
 
     for (const root of STYLE_ROOTS) {
       const destination = roots.find((node) => node.key === root.id);
       if (!destination) continue;
+
+      // The effective label used for this root (may be overridden)
+      const effectiveLabel = nameOverrides[root.id] ?? root.label;
 
       const styles = await root.loader();
       console.log(`Loaded ${styles.length} ${root.label}`);
       // Process styles in the order returned by Figma API to preserve panel order
       styles.forEach((style) => {
         const segments = normalizeName(style.name);
-        const tokenNode = createStyleTokenNode(style, root, segments, includeValues);
-        insertStyleToken(destination, segments, tokenNode);
+        const tokenNode = createStyleTokenNode(style, root, effectiveLabel, segments, includeValues);
+        insertStyleToken(destination, segments, tokenNode, effectiveLabel);
       });
     }
 
@@ -82,11 +92,12 @@ function normalizeName(name: string): string[] {
 function createStyleTokenNode(
   style: BaseStyle,
   root: (typeof STYLE_ROOTS)[number],
+  effectiveLabel: string,
   segments: string[],
   includeValues: boolean
 ): TokenTreeNode {
   const name = segments[segments.length - 1] ?? style.name;
-  const path = [root.label, ...segments.slice(0, -1)];
+  const path = [effectiveLabel, ...segments.slice(0, -1)];
 
   const token: NormalizedToken = {
     id: style.id,
@@ -94,7 +105,7 @@ function createStyleTokenNode(
     name,
     kind: root.kind,
     description: style.description ?? undefined,
-    collection: root.label,
+    collection: effectiveLabel,
     groupPath: segments.slice(0, -1),
     sourceType: 'style',
     sourceId: style.id,
@@ -120,12 +131,17 @@ function createStyleTokenNode(
   } satisfies TokenTreeNode;
 }
 
-function insertStyleToken(root: StyleGroupNode, segments: string[], token: TokenTreeNode) {
+function insertStyleToken(
+  root: StyleGroupNode,
+  segments: string[],
+  token: TokenTreeNode,
+  effectiveLabel: string
+) {
   let current = root;
   const groupSegments = segments.slice(0, -1);
 
   groupSegments.forEach((segment, index) => {
-    const currentPath = [root.name, ...groupSegments.slice(0, index + 1)];
+    const currentPath = [effectiveLabel, ...groupSegments.slice(0, index + 1)];
     const existing = current.children.find((child) => child.type === 'group' && child.name === segment) as
       | StyleGroupNode
       | undefined;

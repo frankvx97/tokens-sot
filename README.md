@@ -2,6 +2,9 @@
 
 Bridge your design system and code effortlessly.
 
+![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+
 ## What is this?
 
 Tokens SOT is a Figma plugin that transforms your design tokens—colors, spacing, typography, shadows, and more—into ready-to-use code. Whether you're working with CSS, Sass, JavaScript, or Tailwind, this plugin speaks your language.

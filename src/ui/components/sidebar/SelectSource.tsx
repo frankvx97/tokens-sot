@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, ChevronRight, Layers } from 'lucide-react';
+import { GripVertical, ChevronRight, Layers, Pencil, Check } from 'lucide-react';
 import { Checkbox } from '../ui/checkbox';
 import { cn } from '@/ui/utils/cn';
 import type { TokenTreeNode } from '@/shared/types';
@@ -28,6 +28,7 @@ interface SelectSourceItemProps {
   onToggleSelection: (node: TokenTreeNode, nextState: boolean) => void;
   onToggleOpen: (id: string, currentIsOpen: boolean) => void;
   onPreviewTarget?: (name: string) => void;
+  onRenameGroup?: (key: string, newName: string) => void;
   isOpen: boolean;
   level?: number;
   openState: Record<string, boolean>;
@@ -39,6 +40,7 @@ function SelectSourceItem({
   onToggleSelection,
   onToggleOpen,
   onPreviewTarget,
+  onRenameGroup,
   isOpen,
   level = 0,
   openState
@@ -47,6 +49,70 @@ function SelectSourceItem({
   const isBranch = Boolean(node.children?.length);
   const isTopLevel = level === 0;
   const isMode = node.type === 'mode';
+
+  // Inline rename state — only used for top-level non-draggable items (Styles)
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [editValue, setEditValue] = React.useState(node.name);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const confirmBtnRef = React.useRef<HTMLButtonElement>(null);
+
+  // Keep editValue in sync when node.name changes from outside (e.g. settings loaded)
+  React.useEffect(() => {
+    if (!isEditing) {
+      setEditValue(node.name);
+    }
+  }, [node.name, isEditing]);
+
+  // Focus + select all when entering edit mode
+  React.useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const handlePencilClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditValue(node.name);
+    setIsEditing(true);
+  };
+
+  const commitRename = () => {
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== node.name && onRenameGroup) {
+      onRenameGroup(node.key, trimmed);
+    }
+    // Always revert display to latest node.name (reducer will update it)
+    setIsEditing(false);
+  };
+
+  const cancelRename = () => {
+    setEditValue(node.name);
+    setIsEditing(false);
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitRename();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelRename();
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      confirmBtnRef.current?.focus();
+    }
+  };
+
+  const handleInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    // Don't commit on blur if focus is moving to the confirm button —
+    // the button's onClick will handle commit instead.
+    if (e.relatedTarget === confirmBtnRef.current) return;
+    commitRename();
+  };
+
+  // Show pencil button only on top-level items that are not draggable (i.e. Styles view)
+  const showRenameButton = isTopLevel && !isDraggable && Boolean(onRenameGroup);
 
   // Only use sortable if draggable and top level
   const sortableProps = useSortable({
@@ -74,9 +140,10 @@ function SelectSourceItem({
         className={cn(
           'group flex items-center text-sm text-slate-300 transition hover:bg-slate-800/60',
           isTopLevel ? 'h-12 px-4 gap-2' : 'h-8 px-2 rounded-md',
-          isBranch && 'cursor-pointer'
+          isBranch && !isEditing && 'cursor-pointer'
         )}
         onClick={() => {
+          if (isEditing) return;
           if (isBranch) {
             onToggleOpen(node.id, isOpen);
           }
@@ -114,18 +181,58 @@ function SelectSourceItem({
           <Layers className="h-3.5 w-3.5 shrink-0 text-slate-500 mr-[12px]" />
         )}
 
-        {/* Label */}
-        <div className="flex flex-1 flex-col">
-          <span className={cn(
-            'text-sm font-medium',
-            isMode ? 'text-slate-300' : 'text-slate-200'
-          )}>
-            {node.name}
-          </span>
-          {node.description && (
-            <span className="text-[11px] text-slate-500 line-clamp-1">{node.description}</span>
+        {/* Label / Inline Edit Input */}
+        <div className="flex flex-1 flex-col min-w-0">
+          {isEditing ? (
+            <input
+              ref={inputRef}
+              type="text"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={handleInputKeyDown}
+              onBlur={handleInputBlur}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full bg-transparent border-b border-accent text-sm font-medium text-slate-200 outline-none py-0.5 pr-1"
+            />
+          ) : (
+            <>
+              <span className={cn(
+                'text-sm font-medium truncate',
+                isMode ? 'text-slate-300' : 'text-slate-200'
+              )}>
+                {node.name}
+              </span>
+              {node.description && (
+                <span className="text-[11px] text-slate-500 line-clamp-1">{node.description}</span>
+              )}
+            </>
           )}
         </div>
+
+        {/* Confirm (check) button while editing — replaces pencil, primary style */}
+        {showRenameButton && isEditing && (
+          <button
+            ref={confirmBtnRef}
+            className="ml-4 flex h-6 w-6 shrink-0 items-center justify-center rounded bg-accent text-accent-foreground transition hover:bg-accent/90 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 focus:ring-offset-slate-900"
+            onClick={(e) => { e.stopPropagation(); commitRename(); }}
+            title="Save name"
+            aria-label="Save name"
+          >
+            <Check className="h-3.5 w-3.5" />
+          </button>
+        )}
+
+        {/* Rename (pencil) button — only for top-level style groups */}
+        {showRenameButton && !isEditing && (
+          <button
+            className="ml-4 flex items-center justify-center p-0.5 text-slate-500 hover:text-slate-200 transition opacity-0 group-hover:opacity-100 focus:opacity-100"
+            onClick={handlePencilClick}
+            title={`Rename "${node.name}"`}
+            aria-label={`Rename ${node.name}`}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        )}
 
         {/* Chevron */}
         {isBranch && (
@@ -179,6 +286,7 @@ interface SelectSourceProps {
   onToggleSelection: (node: TokenTreeNode, nextState: boolean) => void;
   onReorder?: (newOrder: string[]) => void;
   onPreviewTarget?: (name: string) => void;
+  onRenameGroup?: (key: string, newName: string) => void;
 }
 
 export const SelectSource: React.FC<SelectSourceProps> = ({
@@ -186,7 +294,8 @@ export const SelectSource: React.FC<SelectSourceProps> = ({
   isDraggable = false,
   onToggleSelection,
   onReorder,
-  onPreviewTarget
+  onPreviewTarget,
+  onRenameGroup
 }) => {
   const [openState, setOpenState] = React.useState<Record<string, boolean>>({});
   const [orderedItems, setOrderedItems] = React.useState(items);
@@ -262,6 +371,7 @@ export const SelectSource: React.FC<SelectSourceProps> = ({
             onToggleSelection={onToggleSelection}
             onToggleOpen={toggleOpen}
             onPreviewTarget={onPreviewTarget}
+            onRenameGroup={onRenameGroup}
             isOpen={isOpen}
             level={0}
             openState={openState}

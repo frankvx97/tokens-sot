@@ -12,22 +12,11 @@ const SOURCE_OPTIONS = [
   { value: 'styles', label: 'Styles' }
 ] as const;
 
-function countTokens(node: TokenTreeNode): number {
-  if (node.type === 'token') return 1;
-  if (!node.children?.length) return 0;
-  return node.children.reduce((acc, child) => acc + countTokens(child), 0);
-}
-
 export const AssetSidebar: React.FC = () => {
   const { tree, activeSource } = useTokenTreeWithSelection();
   const state = useAppState();
   const dispatch = useAppDispatch();
   const bridge = usePluginBridge();
-
-  const tokenCount = React.useMemo(
-    () => tree.reduce((acc, item) => acc + countTokens(item.node), 0),
-    [tree]
-  );
 
   const updateSelection = React.useCallback(
     (node: TokenTreeNode, nextState: boolean) => {
@@ -93,6 +82,24 @@ export const AssetSidebar: React.FC = () => {
     [dispatch]
   );
 
+  const handleRenameStyleGroup = React.useCallback(
+    (key: string, newName: string) => {
+      dispatch({ type: 'SET_STYLE_GROUP_NAME', payload: { key, name: newName } });
+      const nextSettings: PluginSettings = {
+        ...state.settings,
+        styleGroupNames: {
+          ...state.settings.styleGroupNames,
+          [key]: newName
+        }
+      };
+      bridge.send({
+        type: 'persist-settings',
+        payload: nextSettings
+      });
+    },
+    [bridge, dispatch, state.settings]
+  );
+
   const isVariablesView = activeSource === 'variables';
 
   return (
@@ -137,6 +144,7 @@ export const AssetSidebar: React.FC = () => {
               onToggleSelection={updateSelection}
               onReorder={isVariablesView ? handleCollectionReorder : undefined}
               onPreviewTarget={handlePreviewTarget}
+              onRenameGroup={!isVariablesView ? handleRenameStyleGroup : undefined}
             />
           ) : (
             <div className="rounded-lg border border-dashed border-slate-800 bg-slate-900/40 p-4 text-center text-xs text-slate-500">
@@ -147,19 +155,22 @@ export const AssetSidebar: React.FC = () => {
       </ScrollArea>
 
       {/* Credits Section */}
-      <div className="border-t border-slate-800 px-4 py-3">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-xs text-slate-400">
-            Made with love from 🇸🇻 by{' '}
-            <a
-              href="https://www.linkedin.com/in/frank-px/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:text-blue-300 transition-colors underline"
-            >
-              Franklin Perez
-            </a>
-          </p>
+      <div className="h-14 border-t border-slate-800 px-4 flex items-center">
+        <div className="flex items-center justify-between gap-2 w-full">
+          <div className="flex min-w-0 flex-col">
+            <p className="text-xs text-slate-400">
+              Made with love from 🇸🇻 by{' '}
+              <a
+                href="https://www.linkedin.com/in/frank-px/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sky-300 underline transition-colors hover:text-sky-200"
+              >
+                Franklin Perez
+              </a>
+            </p>
+            <span className="text-xs text-white/80">Version {__APP_VERSION__}</span>
+          </div>
           <Button
             variant="ghost"
             size="sm"

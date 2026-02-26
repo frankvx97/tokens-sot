@@ -5,7 +5,7 @@ import type {
   PluginSettings,
   TokenTreeNode
 } from '@/shared/types';
-import type { PluginToUIMessage, UIToPluginMessage } from '@/shared/messages';
+import type { PluginToUIMessage, PluginWindowState, UIToPluginMessage } from '@/shared/messages';
 
 export interface AppState {
   isBootstrapped: boolean;
@@ -27,6 +27,7 @@ export interface AppState {
   previewTargetId?: string;
   /** Name of the collection/group for matching with export artifacts */
   previewTargetName?: string;
+  windowState: PluginWindowState;
 }
 
 const defaultExportOptions: ExportOptions = {
@@ -35,6 +36,7 @@ const defaultExportOptions: ExportOptions = {
   color: 'hex',
   unit: 'px',
   exportFileStrategy: 'single',
+  includeTopLevelName: false,
   includeAllModes: true,
   ignoreAliases: false,
   useRootAlias: false,
@@ -58,7 +60,12 @@ const initialState: AppState = {
     styles: []
   },
   settings: defaultSettings,
-  exportStatus: 'idle'
+  exportStatus: 'idle',
+  windowState: {
+    width: 1080,
+    height: 720,
+    minimized: false
+  }
 };
 
 const AppStateContext = createContext<AppState | undefined>(undefined);
@@ -81,9 +88,64 @@ export type AppAction =
   | { type: 'SET_COLLECTION_ORDER'; payload: string[] }
   | { type: 'SET_SELECTED_MODE'; payload: string | undefined }
   | { type: 'SET_PREVIEW_TARGET'; payload: { id: string; name: string } | undefined }
+  | { type: 'SET_STYLE_GROUP_NAME'; payload: { key: string; name: string } }
   | { type: 'EXPORT_STATUS'; payload: AppState['exportStatus'] }
   | { type: 'EXPORT_SUMMARY'; payload: AppState['lastExportSummary'] }
-  | { type: 'ERROR'; payload: AppState['lastError'] | undefined };
+  | { type: 'ERROR'; payload: AppState['lastError'] | undefined }
+  | { type: 'SET_WINDOW_STATE'; payload: PluginWindowState };
+
+/**
+ * Recursively patches every token node under a style root to reflect a renamed
+ * collection label.  Only nodes whose token.collection matches oldName are updated.
+ */
+function patchStyleRootName(
+  nodes: TokenTreeNode[],
+  rootKey: string,
+  newName: string
+): TokenTreeNode[] {
+  return nodes.map((node) => {
+    // Find the root node by its key (e.g. "paint-styles")
+    if (node.key === rootKey) {
+      const oldName = node.name;
+      return {
+        ...node,
+        name: newName,
+        path: [newName, ...node.path.slice(1)],
+        children: node.children
+          ? patchCollectionInChildren(node.children, oldName, newName)
+          : node.children
+      };
+    }
+    return node;
+  });
+}
+
+/**
+ * Walks a subtree updating token.collection from oldName to newName and
+ * fixing path[0] on group/token nodes.
+ */
+function patchCollectionInChildren(
+  nodes: TokenTreeNode[],
+  oldName: string,
+  newName: string
+): TokenTreeNode[] {
+  return nodes.map((node) => {
+    const patchedPath =
+      node.path[0] === oldName ? [newName, ...node.path.slice(1)] : node.path;
+    const patchedToken =
+      node.token && node.token.collection === oldName
+        ? { ...node.token, collection: newName }
+        : node.token;
+    return {
+      ...node,
+      path: patchedPath,
+      token: patchedToken,
+      children: node.children
+        ? patchCollectionInChildren(node.children, oldName, newName)
+        : node.children
+    };
+  });
+}
 
 function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
@@ -179,6 +241,30 @@ function appReducer(state: AppState, action: AppAction): AppState {
         lastError: action.payload,
         exportStatus: action.payload ? 'error' : state.exportStatus
       };
+    case 'SET_STYLE_GROUP_NAME': {
+      const { key, name } = action.payload;
+      const updatedStyleGroupNames = {
+        ...state.settings.styleGroupNames,
+        [key]: name
+      };
+      const updatedStyles = patchStyleRootName(state.tokens.styles, key, name);
+      return {
+        ...state,
+        tokens: {
+          ...state.tokens,
+          styles: updatedStyles
+        },
+        settings: {
+          ...state.settings,
+          styleGroupNames: updatedStyleGroupNames
+        }
+      };
+    }
+    case 'SET_WINDOW_STATE':
+      return {
+        ...state,
+        windowState: action.payload
+      };
     default:
       return state;
   }
@@ -256,6 +342,9 @@ export function createMessageListener(dispatch: Dispatch<AppAction>) {
             message: message.payload.message
           }
         });
+        break;
+      case 'window-state':
+        dispatch({ type: 'SET_WINDOW_STATE', payload: message.payload });
         break;
       default:
         break;

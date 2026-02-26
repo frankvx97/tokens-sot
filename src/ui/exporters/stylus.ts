@@ -34,17 +34,22 @@ export function renderStylus(sections: TokenSection[], options: ExportOptions, m
 }
 
 function buildStylusDeclaration(entry: TokenSectionEntry, options: ExportOptions, modeName: string | null): string | null {
-  const varName = generateStylusVarName(entry.token, options.casing, modeName);
-  const aliasName = entry.aliasTarget ? generateStylusVarName(entry.aliasTarget, options.casing, modeName) : null;
+  const varName = generateStylusVarName(entry.token, options.casing, modeName, options.includeTopLevelName);
+  const aliasName = entry.aliasTarget ? generateStylusVarName(entry.aliasTarget, options.casing, modeName, options.includeTopLevelName) : null;
   const value = aliasName ?? formatTokenValue(entry.mode.value, options);
   if (!value) return null;
   return `${varName} = ${value}`;
 }
 
-function generateStylusVarName(token: TokenSectionEntry['token'], casing: ExportOptions['casing'], modeName?: string | null): string {
+function generateStylusVarName(
+  token: TokenSectionEntry['token'],
+  casing: ExportOptions['casing'],
+  modeName?: string | null,
+  includeTopLevelName?: boolean
+): string {
   const parts: string[] = [];
 
-  if (token.collection) {
+  if (includeTopLevelName && token.collection) {
     parts.push(token.collection);
   }
 
