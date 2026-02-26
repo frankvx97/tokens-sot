@@ -15,7 +15,8 @@
     "lint:fix": "eslint --ext .ts,.tsx src --fix",
     "preview": "vite preview",
     "test": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "version": "npm run build && git add dist"
   },
   "author": "",
   "license": "MIT",

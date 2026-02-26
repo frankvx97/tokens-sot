@@ -277,7 +277,7 @@ const AppShell: FC = () => {
         window.cancelAnimationFrame(rafId);
       }
     };
-  }, [bridge, state.windowState.minimized]);
+  }, [bridge, state.isBootstrapped, state.windowState.minimized]);
 
   if (!state.isBootstrapped) {
     return (
