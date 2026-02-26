@@ -6,6 +6,9 @@ export default defineConfig({
   plugins: [react()],
   root: './src/ui',
   base: './',
+  define: {
+    __APP_VERSION__: JSON.stringify(process.env.npm_package_version ?? '0.0.0')
+  },
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src')
@@ -16,6 +19,7 @@ export default defineConfig({
     emptyOutDir: false,
     assetsDir: 'assets',
     sourcemap: true,
+    cssCodeSplit: false,
     chunkSizeWarningLimit: 700,
     rollupOptions: {
       input: resolve(__dirname, 'src/ui/index.html'),
@@ -23,14 +27,7 @@ export default defineConfig({
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash].[ext]',
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('react')) return 'react';
-            if (id.includes('@radix-ui')) return 'radix';
-            if (id.includes('@dnd-kit')) return 'dnd-kit';
-            return 'vendor';
-          }
-        }
+        inlineDynamicImports: true
       }
     }
   },

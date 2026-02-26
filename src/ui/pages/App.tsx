@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState, type FC } from 'react';
 import { Highlight, themes } from 'prism-react-renderer';
+import { Check, Copy, Download, Maximize2, Minimize2, Settings } from 'lucide-react';
 import { createPluginDispatcher, useAppDispatch, useAppState, usePluginBridge } from '../state/app-state';
 import { AppStateProvider, createMessageListener } from '../state/app-state';
 import JSZip from 'jszip';
 import { AssetSidebar } from '../components/sidebar/AssetSidebar';
 import { FormatSelector, type ExportFormat } from '../components/common/FormatSelector';
 import { ConfigureModal } from '../components/modals/ConfigureModal';
+import { Button } from '../components/ui/button';
 import { getSelectedTokens, getAllTokens } from '../state/selectors';
 import { buildExportArtifacts } from '../exporters';
 import type { NormalizedToken } from '@/shared/types';
@@ -17,6 +19,7 @@ const AppShell: FC = () => {
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('sass');
   const [isConfigureOpen, setIsConfigureOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const cssLikeFormat = selectedFormat === 'css' || selectedFormat === 'sass' || selectedFormat === 'less' || selectedFormat === 'stylus';
 
   useEffect(() => {
     const listener = createMessageListener(dispatch);
@@ -36,15 +39,65 @@ const AppShell: FC = () => {
 
   const getPrismLanguage = (format: ExportFormat): string => {
     const languageMap: Record<ExportFormat, string> = {
-      sass: 'scss',
-      less: 'less',
-      stylus: 'stylus',
+      sass: 'css',
+      less: 'css',
+      stylus: 'css',
       js: 'javascript',
       json: 'json',
       tailwind: 'javascript',
       css: 'css'
     };
     return languageMap[format] || 'css';
+  };
+
+  const extractColorLiteral = (valueText: string): string | null => {
+    const match = valueText.match(/#(?:[0-9a-fA-F]{3,8})\b|rgba?\([^)]+\)|hsla?\([^)]+\)/);
+    return match ? match[0] : null;
+  };
+
+  const renderCssLikeLine = (lineText: string, index: number) => {
+    const declarationMatch = lineText.match(/^(\s*)(--?[\w-]+|@[\w-]+|\$[\w-]+)\s*:\s*([^;]+?)([;,]?)\s*$/);
+    if (!declarationMatch) {
+      if (/^\s*\/[/*]/.test(lineText)) {
+        return (
+          <div key={index}>
+            <span className="whitespace-pre text-slate-500 italic">{lineText || ' '}</span>
+          </div>
+        );
+      }
+      if (/^\s*[{}]\s*$/.test(lineText)) {
+        return (
+          <div key={index}>
+            <span className="whitespace-pre text-slate-300">{lineText || ' '}</span>
+          </div>
+        );
+      }
+      return (
+        <div key={index}>
+          <span className="whitespace-pre text-slate-200">{lineText || ' '}</span>
+        </div>
+      );
+    }
+
+    const [, indent, variableName, valueText, punctuation] = declarationMatch;
+    const swatchColor = extractColorLiteral(valueText);
+
+    return (
+      <div key={index} className="whitespace-pre">
+        <span className="text-slate-200">{indent}</span>
+        <span className="text-sky-200 font-semibold">{variableName}</span>
+        <span className="text-rose-300">:</span>
+        <span> </span>
+        {swatchColor && (
+          <span className="relative mr-1.5 inline-flex h-3.5 w-3.5 overflow-hidden rounded-[2px] align-middle ring-1 ring-slate-500/70">
+            <span className="absolute inset-0 bg-[linear-gradient(45deg,#ffffff_25%,transparent_25%,transparent_50%,#ffffff_50%,#ffffff_75%,transparent_75%,transparent)] bg-[length:6px_6px] opacity-40" />
+            <span className="absolute inset-0" style={{ backgroundColor: swatchColor }} />
+          </span>
+        )}
+        <span className="text-slate-100">{valueText}</span>
+        {punctuation ? <span className="text-slate-400">{punctuation}</span> : null}
+      </div>
+    );
   };
 
   const exportArtifacts = useMemo(() => {
@@ -58,12 +111,13 @@ const AppShell: FC = () => {
     }
   }, [selectedTokens, selectedFormat, state.settings.exportOptions, tokenLookup]);
 
+  const previewTargetName = state.previewTargetName;
+  const exportFileStrategy = state.settings.exportOptions.exportFileStrategy;
+
   // Find the artifact to preview based on previewTargetName (for multi-file mode)
   const previewArtifact = useMemo(() => {
     if (!exportArtifacts.length) return null;
-    
-    const { previewTargetName } = state;
-    const isMultiFileMode = state.settings.exportOptions.exportFileStrategy === 'multiple';
+    const isMultiFileMode = exportFileStrategy === 'multiple';
     
     // In multi-file mode with a target selected, find the matching artifact
     if (isMultiFileMode && previewTargetName && exportArtifacts.length > 1) {
@@ -83,7 +137,7 @@ const AppShell: FC = () => {
     
     // Default to first artifact
     return exportArtifacts[0];
-  }, [exportArtifacts, state.previewTargetName, state.settings.exportOptions.exportFileStrategy]);
+  }, [exportArtifacts, previewTargetName, exportFileStrategy]);
 
   const previewCode = previewArtifact?.contents ?? '/* Tokens - Preview */\n/* Select tokens on the left to generate code snippets. */';
 
@@ -184,11 +238,68 @@ const AppShell: FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  useEffect(() => {
+    if (state.windowState.minimized) return;
+
+    let rafId: number | undefined;
+    const onPointerMove = (event: PointerEvent) => {
+      if (rafId) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = undefined;
+        const width = Math.max(event.clientX, 720);
+        const height = Math.max(event.clientY, 520);
+        bridge.send({
+          type: 'resize-window',
+          payload: { width, height }
+        });
+      });
+    };
+
+    const stopResize = () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', stopResize);
+    };
+
+    const resizeHandle = document.getElementById('plugin-resize-handle');
+    if (!resizeHandle) return undefined;
+
+    const startResize = (event: PointerEvent) => {
+      event.preventDefault();
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', stopResize);
+    };
+
+    resizeHandle.addEventListener('pointerdown', startResize);
+    return () => {
+      resizeHandle.removeEventListener('pointerdown', startResize);
+      stopResize();
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+    };
+  }, [bridge, state.windowState.minimized]);
+
   if (!state.isBootstrapped) {
     return (
       <div className="flex h-[100vh] flex-col items-center justify-center gap-3 bg-slate-950 text-slate-300">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-slate-700 border-t-sky-500" />
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-slate-700 border-t-accent" />
         <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Bootstrapping tokens…</p>
+      </div>
+    );
+  }
+
+  if (state.windowState.minimized) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-950/95">
+        <Button
+          size="icon"
+          variant="accentOutline"
+          onClick={() => bridge.send({ type: 'toggle-minimize' })}
+          title="Expand plugin"
+          aria-label="Expand plugin"
+        >
+          <Maximize2 className="h-4 w-4" />
+        </Button>
       </div>
     );
   }
@@ -207,64 +318,83 @@ const AppShell: FC = () => {
               <FormatSelector value={selectedFormat} onChange={setSelectedFormat} />
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={() => setIsConfigureOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-blue-500 bg-blue-500/10 px-3 py-1.5 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-500/20">
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
+              <Button
+                size="icon"
+                variant="outline"
+                onClick={() => bridge.send({ type: 'toggle-minimize' })}
+                title="Minimize plugin"
+                aria-label="Minimize plugin"
+              >
+                <Minimize2 className="h-4 w-4" />
+              </Button>
+              <Button variant="accentOutline" size="sm" className="gap-1.5" onClick={() => setIsConfigureOpen(true)}>
+                <Settings className="h-4 w-4" />
                 Configure
-              </button>
+              </Button>
             </div>
           </header>
           <section className="min-h-0 flex-1 overflow-hidden bg-slate-950">
-            <Highlight theme={themes.nightOwl} code={previewCode} language={getPrismLanguage(selectedFormat)}>
-              {({ className, style, tokens, getLineProps, getTokenProps }) => (
-                <div
-                  className="h-full overflow-auto p-4"
-                  style={{ backgroundColor: style.backgroundColor, color: style.color }}
-                >
-                  <pre
-                    className={`${className} min-h-full w-full bg-transparent font-mono text-sm leading-relaxed`}
-                    style={{ color: style.color }}
+            {cssLikeFormat ? (
+              <div className="h-full overflow-auto p-4" style={{ backgroundColor: themes.nightOwl.plain.backgroundColor }}>
+                <pre className="min-h-full w-full bg-transparent font-mono text-sm leading-relaxed text-slate-100">
+                  {previewCode.split('\n').map((line, index) => renderCssLikeLine(line, index))}
+                </pre>
+              </div>
+            ) : (
+              <Highlight theme={themes.nightOwl} code={previewCode} language={getPrismLanguage(selectedFormat)}>
+                {({ className, style, tokens, getLineProps, getTokenProps }) => (
+                  <div
+                    className="h-full overflow-auto p-4"
+                    style={{ backgroundColor: style.backgroundColor, color: style.color }}
                   >
-                    {tokens.map((line, i) => (
-                      <div key={i} {...getLineProps({ line })}>
-                        {line.map((token, key) => (
-                          <span key={key} {...getTokenProps({ token })} />
-                        ))}
-                      </div>
-                    ))}
-                  </pre>
-                </div>
-              )}
-            </Highlight>
+                    <pre
+                      className={`${className} min-h-full w-full bg-transparent font-mono text-sm leading-relaxed`}
+                      style={{ color: style.color }}
+                    >
+                      {tokens.map((line, i) => (
+                        <div key={i} {...getLineProps({ line })}>
+                          {line.map((token, key) => (
+                            <span key={key} {...getTokenProps({ token })} />
+                          ))}
+                        </div>
+                      ))}
+                    </pre>
+                  </div>
+                )}
+              </Highlight>
+            )}
           </section>
-          <footer className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-800 bg-slate-900/40 px-4 py-3">
-            <button onClick={handleCopy} disabled={!previewArtifact} className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/60 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
+          <footer className="flex h-14 shrink-0 items-center justify-end gap-3 border-t border-slate-800 bg-slate-900/40 px-4 py-3">
+            <Button onClick={handleCopy} disabled={!previewArtifact} variant="secondary" className="gap-2">
               {isCopied ? (
                 <>
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
+                  <Check className="h-4 w-4" />
                   Copied!
                 </>
               ) : (
                 <>
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
+                  <Copy className="h-4 w-4" />
                   Copy
                 </>
               )}
-            </button>
-            <button onClick={handleDownload} disabled={!exportArtifacts.length} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
+            </Button>
+            <Button onClick={handleDownload} disabled={!exportArtifacts.length} className="gap-2">
+              <Download className="h-4 w-4" />
               Download
-            </button>
+            </Button>
           </footer>
         </main>
+      </div>
+      <div
+        id="plugin-resize-handle"
+        className="absolute bottom-1 right-1 z-20 flex h-5 w-5 cursor-se-resize items-end justify-end text-slate-500 transition-colors hover:text-slate-300"
+        title="Resize plugin"
+        aria-hidden="true"
+      >
+        <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <line x1="2.5" y1="13.5" x2="13.5" y2="2.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+          <line x1="7.5" y1="13.5" x2="13.5" y2="7.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+        </svg>
       </div>
       {isConfigureOpen && <ConfigureModal isOpen={isConfigureOpen} onClose={() => setIsConfigureOpen(false)} />}
     </>

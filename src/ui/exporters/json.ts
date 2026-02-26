@@ -22,7 +22,7 @@ export function renderJSON(sections: TokenSection[], options: ExportOptions, mod
       const sectionTokens: Record<string, unknown> = {};
 
       section.entries.forEach((entry) => {
-        const key = generateJSONKey(entry.token, options.casing, null);
+        const key = generateJSONKey(entry.token, options.casing, null, options.includeTopLevelName);
         const value = buildJSONValue(entry, options, null);
         if (!value) return;
         sectionTokens[key] = JSON.parse(value);
@@ -43,7 +43,7 @@ export function renderJSON(sections: TokenSection[], options: ExportOptions, mod
     properties.push(`    "${escapeJson(commentKey)}": null`);
 
     section.entries.forEach((entry) => {
-      const key = generateJSONKey(entry.token, options.casing, null);
+      const key = generateJSONKey(entry.token, options.casing, null, options.includeTopLevelName);
       const value = buildJSONValue(entry, options, null);
       if (!value) return;
       properties.push(`    "${escapeJson(key)}": ${value}`);
@@ -62,7 +62,7 @@ function escapeJson(value: string): string {
 
 function buildJSONValue(entry: TokenSectionEntry, options: ExportOptions, _modeName: string | null): string | null {
   if (entry.aliasTarget) {
-    const aliasKey = generateJSONKey(entry.aliasTarget, options.casing, null);
+    const aliasKey = generateJSONKey(entry.aliasTarget, options.casing, null, options.includeTopLevelName);
     return JSON.stringify(`@alias ${aliasKey}`);
   }
 
@@ -71,10 +71,15 @@ function buildJSONValue(entry: TokenSectionEntry, options: ExportOptions, _modeN
   return JSON.stringify(rawValue);
 }
 
-function generateJSONKey(token: TokenSectionEntry['token'], casing: ExportOptions['casing'], _modeName: string | null): string {
+function generateJSONKey(
+  token: TokenSectionEntry['token'],
+  casing: ExportOptions['casing'],
+  _modeName: string | null,
+  includeTopLevelName: boolean
+): string {
   const parts: string[] = [];
 
-  if (token.collection) {
+  if (includeTopLevelName && token.collection) {
     parts.push(token.collection);
   }
 

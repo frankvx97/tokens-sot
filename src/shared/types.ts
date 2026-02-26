@@ -166,6 +166,7 @@ export interface ExportOptions {
   color: ColorFormat;
   unit: DimensionUnit;
   exportFileStrategy: ExportFileStrategy;
+  includeTopLevelName: boolean;
   includeAllModes: boolean;
   ignoreAliases: boolean;
   useRootAlias: boolean;
@@ -182,6 +183,8 @@ export interface PluginSettings {
   activeSource: 'variables' | 'styles';
   collectionOrder?: string[]; // Array of collection names in user's preferred order
   selectedModeId?: string; // Currently selected mode ID for preview
+  /** User overrides for style group display names. Key = style root key (e.g. "paint-styles"), Value = custom label */
+  styleGroupNames?: Record<string, string>;
 }
 
 export interface ManualTokenGroup {

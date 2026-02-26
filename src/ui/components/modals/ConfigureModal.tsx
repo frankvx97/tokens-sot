@@ -3,9 +3,21 @@
  */
 
 import * as React from 'react';
-import { X } from 'lucide-react';
 import type { ExportOptions, TokenCasing, ColorFormat, DimensionUnit } from '@/shared/types';
+import { cn } from '@/ui/utils/cn';
 import { useAppDispatch, useAppState } from '../../state/app-state';
+import { Button } from '../ui/button';
+import { Checkbox } from '../ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '../ui/dialog';
+import { Label } from '../ui/label';
+import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
 
 interface ConfigureModalProps {
   isOpen: boolean;
@@ -27,52 +39,97 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ title, children }) =>
 interface ToggleOption {
   label: string;
   value: string;
-  description?: string;
 }
 
-interface ToggleGroupProps {
+interface OptionGroupProps {
   label: string;
   options: ToggleOption[];
   value: string;
   onChange: (value: string) => void;
 }
 
-const ToggleGroup: React.FC<ToggleGroupProps> = ({ label, options, value, onChange }) => (
+const OptionGroup: React.FC<OptionGroupProps> = ({ label, options, value, onChange }) => (
   <div className="space-y-2">
-    <label className="text-xs font-medium text-slate-400">{label}</label>
-    <div className="grid grid-cols-3 gap-2">
+    <Label className="text-xs text-slate-400">{label}</Label>
+    <ToggleGroup
+      type="single"
+      value={value}
+      onValueChange={(nextValue) => {
+        if (!nextValue) return;
+        onChange(nextValue);
+      }}
+      className={cn(
+        'grid gap-2 rounded-lg bg-slate-900/60 p-1',
+        options.length === 2 ? 'grid-cols-2' : 'grid-cols-3'
+      )}
+    >
       {options.map((option) => (
-        <button
+        <ToggleGroupItem
           key={option.value}
-          onClick={() => onChange(option.value)}
-          className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-            value === option.value
-              ? 'border-blue-500 bg-blue-500/10 text-blue-400'
-              : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600 hover:bg-slate-800'
-          }`}
+          value={option.value}
+          tone="muted"
+          className="h-9 border-slate-700 bg-slate-900/40 text-xs text-slate-200 hover:bg-slate-800/60 data-[state=on]:border-accent data-[state=on]:bg-accent/20 data-[state=on]:text-slate-50 sm:text-sm"
         >
           {option.label}
-        </button>
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   </div>
 );
 
-interface CheckboxProps {
+interface RadioCardsGroupProps {
+  label: string;
+  name: string;
+  options: ToggleOption[];
+  value: string;
+  onChange: (value: string) => void;
+}
+
+const RadioCardsGroup: React.FC<RadioCardsGroupProps> = ({ label, name, options, value, onChange }) => (
+  <fieldset className="space-y-2">
+    <Label className="text-xs text-slate-400">{label}</Label>
+    <div className="grid grid-cols-2 gap-2">
+      {options.map((option) => {
+        const isSelected = option.value === value;
+        return (
+          <label
+            key={option.value}
+            className={cn(
+              'flex h-11 cursor-pointer items-center justify-center rounded-lg border text-sm font-medium transition-colors',
+              isSelected
+                ? 'border-accent bg-accent/20 text-slate-50'
+                : 'border-slate-700 bg-slate-900/40 text-slate-200 hover:bg-slate-800/60'
+            )}
+          >
+            <input
+              type="radio"
+              name={name}
+              value={option.value}
+              checked={isSelected}
+              onChange={() => onChange(option.value)}
+              className="sr-only"
+            />
+            {option.label}
+          </label>
+        );
+      })}
+    </div>
+  </fieldset>
+);
+
+interface CheckboxRowProps {
   label: string;
   description?: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
 }
 
-const Checkbox: React.FC<CheckboxProps> = ({ label, description, checked, onChange }) => (
+const CheckboxRow: React.FC<CheckboxRowProps> = ({ label, description, checked, onChange }) => (
   <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-800 bg-slate-900/40 p-3 transition-colors hover:bg-slate-900">
-    <div className="flex h-5 items-center">
-      <input
-        type="checkbox"
+    <div className="pt-0.5">
+      <Checkbox
         checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
+        onCheckedChange={(nextChecked) => onChange(nextChecked === true || nextChecked === 'indeterminate')}
       />
     </div>
     <div className="flex-1">
@@ -87,14 +144,11 @@ export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose 
   const state = useAppState();
   const [localSettings, setLocalSettings] = React.useState<ExportOptions>(state.settings.exportOptions);
 
-  // Update local settings when modal opens
   React.useEffect(() => {
     if (isOpen) {
       setLocalSettings(state.settings.exportOptions);
     }
   }, [isOpen, state.settings.exportOptions]);
-
-  if (!isOpen) return null;
 
   const handleSave = () => {
     dispatch({ type: 'UPDATE_EXPORT_OPTIONS', payload: localSettings });
@@ -135,42 +189,36 @@ export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose 
   ];
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
-        onClick={handleCancel}
-      />
+    <Dialog
+      open={isOpen}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          handleCancel();
+        }
+      }}
+    >
+      <DialogContent className="max-w-2xl rounded-xl border-slate-800 bg-slate-950 p-0 shadow-2xl">
+        <DialogHeader className="border-b border-slate-800 px-6 py-4">
+          <DialogTitle>Export Configuration</DialogTitle>
+          <DialogDescription className="text-xs text-slate-500">
+            Configure naming, formatting, and export structure for generated token files.
+          </DialogDescription>
+        </DialogHeader>
 
-      {/* Modal */}
-      <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-800 bg-slate-950 shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
-          <h2 className="text-lg font-semibold text-slate-100">Export Configuration</h2>
-          <button
-            onClick={handleCancel}
-            className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="max-h-[70vh] overflow-y-auto p-6">
+        <div className="max-h-[70vh] overflow-y-auto px-6 py-5">
           <div className="space-y-6">
-            {/* Naming Convention */}
             <SettingsSection title="Naming Convention">
-              <ToggleGroup
+              <RadioCardsGroup
                 label="Token Casing"
+                name="token-casing"
                 options={casingOptions}
                 value={localSettings.casing}
                 onChange={(value) => updateSetting('casing', value as TokenCasing)}
               />
             </SettingsSection>
 
-            {/* Color Format */}
             <SettingsSection title="Color Format">
-              <ToggleGroup
+              <OptionGroup
                 label="Output Format"
                 options={colorOptions}
                 value={localSettings.color}
@@ -178,9 +226,8 @@ export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose 
               />
             </SettingsSection>
 
-            {/* Unit Format */}
             <SettingsSection title="Unit Format">
-              <ToggleGroup
+              <OptionGroup
                 label="Dimension Units"
                 options={unitOptions}
                 value={localSettings.unit}
@@ -188,9 +235,8 @@ export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose 
               />
             </SettingsSection>
 
-            {/* Export Strategy */}
             <SettingsSection title="Export Strategy">
-              <ToggleGroup
+              <OptionGroup
                 label="File Organization"
                 options={fileStrategyOptions}
                 value={localSettings.exportFileStrategy}
@@ -198,15 +244,20 @@ export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose 
               />
             </SettingsSection>
 
-            {/* Advanced Options */}
             <SettingsSection title="Advanced Options">
-              <Checkbox
+              <CheckboxRow
                 label="Separate Modes into Files"
                 description="Create separate files for each mode when using multiple file strategy"
                 checked={localSettings.separateModes}
                 onChange={(checked) => updateSetting('separateModes', checked)}
               />
-              <Checkbox
+              <CheckboxRow
+                label="Include Top-Level Name"
+                description="Prefix token names with their collection or style type."
+                checked={localSettings.includeTopLevelName}
+                onChange={(checked) => updateSetting('includeTopLevelName', checked)}
+              />
+              <CheckboxRow
                 label="Ignore Aliases"
                 description="Export resolved values instead of variable references"
                 checked={localSettings.ignoreAliases}
@@ -216,22 +267,15 @@ export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose 
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-slate-800 px-6 py-4">
-          <button
-            onClick={handleCancel}
-            className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800"
-          >
+        <DialogFooter className="border-t border-slate-800 px-6 py-4">
+          <Button onClick={handleCancel} variant="outline" type="button">
             Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-          >
+          </Button>
+          <Button onClick={handleSave} type="button">
             Save Changes
-          </button>
-        </div>
-      </div>
-    </>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };

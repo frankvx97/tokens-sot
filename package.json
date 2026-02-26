@@ -1,14 +1,15 @@
 {
   "name": "tokens-sot",
   "version": "1.0.0",
+  "type": "module",
   "description": "Figma plugin to export variables and styles as production-ready design tokens.",
   "main": "dist/code.js",
   "scripts": {
     "build": "rimraf dist && npm run build:ui && npm run build:main && npm run typecheck",
-    "build:main": "node scripts/build-plugin.js",
+    "build:main": "node scripts/build-plugin.cjs",
     "build:ui": "vite build",
     "dev": "rimraf dist && concurrently \"npm run dev:main\" \"npm run dev:ui\"",
-    "dev:main": "node scripts/build-plugin.js --watch",
+    "dev:main": "node scripts/build-plugin.cjs --watch",
     "dev:ui": "vite build --watch --emptyOutDir false",
     "lint": "eslint --ext .ts,.tsx src",
     "lint:fix": "eslint --ext .ts,.tsx src --fix",

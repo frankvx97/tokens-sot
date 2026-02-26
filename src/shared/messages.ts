@@ -1,5 +1,11 @@
 import type { BootstrapPayload, ExportRequest, ExportResult, ManualTokenGroup, PluginSettings } from './types';
 
+export interface PluginWindowState {
+  width: number;
+  height: number;
+  minimized: boolean;
+}
+
 export type PluginToUIMessage =
   | {
       type: 'bootstrap';
@@ -31,6 +37,10 @@ export type PluginToUIMessage =
         message: string;
         detail?: unknown;
       };
+    }
+  | {
+      type: 'window-state';
+      payload: PluginWindowState;
     };
 
 export type UIToPluginMessage =
@@ -61,6 +71,16 @@ export type UIToPluginMessage =
     }
   | {
       type: 'close-plugin';
+    }
+  | {
+      type: 'resize-window';
+      payload: {
+        width: number;
+        height: number;
+      };
+    }
+  | {
+      type: 'toggle-minimize';
     };
 
 export type PluginMessageHandler = (message: UIToPluginMessage) => Promise<void> | void;

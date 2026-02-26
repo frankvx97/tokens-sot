@@ -8,7 +8,7 @@ This guide is for agentic coding assistants working in this repo.
 - UI thread (React): `src/ui/main.tsx` and `src/ui/pages`.
 - Cross-thread messages are typed in `src/shared/messages.ts`.
 - Token models live in `src/shared/types.ts`.
-- UI build output in `dist/` and inlined by `scripts/build-plugin.js`.
+- UI build output in `dist/` and inlined by `scripts/build-plugin.cjs`.
 
 ## Commands
 ### Install
@@ -38,6 +38,17 @@ This guide is for agentic coding assistants working in this repo.
 - Run a single file and test name: `npx vitest path/to/file.test.ts -t "test name"`.
 
 Note: No test files were found in the repo right now.
+
+### Versioning (patch/minor/major)
+This repo uses the `package.json` version and git tags.
+- Patch release (x.y.Z): `npm version patch -m "chore(release): %s"`
+- Minor release (x.Y.0): `npm version minor -m "chore(release): %s"`
+- Major release (X.0.0): `npm version major -m "chore(release): %s"`
+
+How tagging works:
+- `npm version ...` creates a release commit and an annotated tag `v<version>` (e.g. `v1.2.3`).
+- The release commit message MUST include the version string (the tag), e.g. `chore(release): v1.2.3`.
+- If tagging manually, use `git tag -a v1.2.3 -m "v1.2.3"` and make the release commit message match.
 
 ## Editor / tooling rules
 - No Cursor rules found in `.cursor/rules/` or `.cursorrules`.
@@ -111,7 +122,7 @@ Note: No test files were found in the repo right now.
 - Prefer testing exported functions and user behavior over implementation details.
 
 ## Architecture references
-- `ARCHITECTURE.md` describes runtime surfaces and message flow.
+- `ARCHITECTURE.md` (if present) describes runtime surfaces and message flow.
 - UI entry: `src/ui/main.tsx`.
 - Main entry: `src/main.ts`.
 - Plugin manifest: `manifest.json`.
@@ -138,7 +149,7 @@ Note: No test files were found in the repo right now.
 ## Notes for agents
 - Prefer edits in `src/`; do not modify `dist/`.
 - Keep watch/build commands in mind: UI HTML is inlined into `dist/code.js`.
-- If unsure about UI vs main thread behavior, check `ARCHITECTURE.md` first.
+- If unsure about UI vs main thread behavior, check `src/main.ts`, `src/ui/state/app-state.tsx`, and `src/shared/messages.ts` first.
 
 ## Conventions observed
 - ESLint rules are defined in `package.json`.
