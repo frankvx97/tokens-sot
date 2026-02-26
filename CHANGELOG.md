@@ -4,6 +4,8 @@ All notable changes made during this session are documented here.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-02-26
+
 ### Added
 - You can now rename style groups directly in the sidebar.
 - The plugin window now supports resizing and minimize/restore controls.
@@ -22,4 +24,3 @@ All notable changes made during this session are documented here.
 - Resize handle icon direction/style was corrected.
 
 ---
-
