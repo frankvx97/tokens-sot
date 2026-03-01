@@ -55,7 +55,7 @@ const OptionGroup: React.FC<OptionGroupProps> = ({ label, options, value, onChan
       type="single"
       value={value}
       onValueChange={(nextValue) => {
-        if (!nextValue) return;
+        if (nextValue == null) return;
         onChange(nextValue);
       }}
       className={cn(
@@ -129,7 +129,12 @@ const CheckboxRow: React.FC<CheckboxRowProps> = ({ label, description, checked, 
     <div className="pt-0.5">
       <Checkbox
         checked={checked}
-        onCheckedChange={(nextChecked) => onChange(nextChecked === true || nextChecked === 'indeterminate')}
+        onCheckedChange={(nextChecked) => {
+          if (nextChecked === 'indeterminate') {
+            return;
+          }
+          onChange(nextChecked);
+        }}
       />
     </div>
     <div className="flex-1">
