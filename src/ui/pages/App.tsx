@@ -246,8 +246,8 @@ const AppShell: FC = () => {
       if (rafId) return;
       rafId = window.requestAnimationFrame(() => {
         rafId = undefined;
-        const width = Math.max(event.clientX, 720);
-        const height = Math.max(event.clientY, 520);
+        const width = Math.min(Math.max(event.clientX, 720), 1800);
+        const height = Math.min(Math.max(event.clientY, 520), 1400);
         bridge.send({
           type: 'resize-window',
           payload: { width, height }

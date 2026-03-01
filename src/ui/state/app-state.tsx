@@ -110,7 +110,7 @@ function patchStyleRootName(
       return {
         ...node,
         name: newName,
-        path: [newName, ...node.path.slice(1)],
+        path: node.path.length > 0 ? [newName, ...node.path.slice(1)] : [newName],
         children: node.children
           ? patchCollectionInChildren(node.children, oldName, newName)
           : node.children
