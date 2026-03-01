@@ -138,8 +138,8 @@ function SelectSourceItem({
     >
       <div
         className={cn(
-          'group flex items-center text-sm text-slate-300 transition hover:bg-slate-800/60',
-          isTopLevel ? 'h-12 px-4 gap-2' : 'h-8 px-2 rounded-md',
+          'group flex text-sm text-slate-300 transition hover:bg-slate-800/60',
+          isTopLevel ? 'h-12 items-center px-4 gap-2' : 'min-h-8 items-start py-1.5 px-2 rounded-md',
           isBranch && !isEditing && 'cursor-pointer'
         )}
         onClick={() => {
@@ -203,7 +203,7 @@ function SelectSourceItem({
                 {node.name}
               </span>
               {node.description && (
-                <span className="text-[11px] text-slate-500 line-clamp-1">{node.description}</span>
+                <span className="text-[11px] text-slate-500 break-words">{node.description}</span>
               )}
             </>
           )}
