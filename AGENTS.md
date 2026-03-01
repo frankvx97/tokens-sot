@@ -40,15 +40,25 @@ This guide is for agentic coding assistants working in this repo.
 Note: No test files were found in the repo right now.
 
 ### Versioning (patch/minor/major)
-This repo uses the `package.json` version and git tags.
-- Patch release (x.y.Z): `npm version patch -m "chore(release): %s"`
-- Minor release (x.Y.0): `npm version minor -m "chore(release): %s"`
-- Major release (X.0.0): `npm version major -m "chore(release): %s"`
+This repo uses `npm version` to bump `package.json`, sync `manifest.json`, build, and create a git tag — all in one command.
 
-How tagging works:
-- `npm version ...` creates a release commit and an annotated tag `v<version>` (e.g. `v1.2.3`).
-- The release commit message MUST include the version string (the tag), e.g. `chore(release): v1.2.3`.
-- If tagging manually, use `git tag -a v1.2.3 -m "v1.2.3"` and make the release commit message match.
+**Release workflow:**
+1. Ensure the working tree is clean (commit or stash any changes first).
+2. Run the appropriate version command:
+   - Patch release (x.y.Z): `npm version patch -m "chore(release): %s"`
+   - Minor release (x.Y.0): `npm version minor -m "chore(release): %s"`
+   - Major release (X.0.0): `npm version major -m "chore(release): %s"`
+3. Push the commit and tag: `git push origin <branch> --follow-tags`
+4. Open a PR from the release branch into `main`.
+
+What `npm version` does automatically (via the `version` lifecycle hook):
+- Runs `npm run build` (full build + typecheck).
+- Runs `node scripts/sync-manifest-version.cjs` to write the new version into `manifest.json`.
+- Stages `dist/` and `manifest.json` so they are included in the version commit.
+- Creates an annotated git tag `v<version>` (e.g. `v1.2.3`).
+
+On tag push, `.github/workflows/release.yml` runs the build again in CI and verifies that
+`package.json`, `manifest.json`, and the git tag all contain the same version number.
 
 ## Editor / tooling rules
 - No Cursor rules found in `.cursor/rules/` or `.cursorrules`.

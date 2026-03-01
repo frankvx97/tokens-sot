@@ -16,7 +16,8 @@
     "preview": "vite preview",
     "test": "vitest",
     "typecheck": "tsc --noEmit",
-    "version": "npm run build && git add dist"
+    "sync-manifest": "node scripts/sync-manifest-version.cjs",
+    "version": "npm run build && node scripts/sync-manifest-version.cjs && git add dist manifest.json"
   },
   "author": "",
   "license": "MIT",

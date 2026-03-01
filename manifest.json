@@ -2,8 +2,11 @@
   "name": "Tokens SOT",
   "id": "1564875958262501937",
   "api": "1.0.0",
+  "version": "1.1.1",
   "main": "dist/code.js",
-  "permissions": ["currentuser"],
+  "permissions": [
+    "currentuser"
+  ],
   "enableProposedApi": false,
   "documentAccess": "dynamic-page",
   "editorType": [
