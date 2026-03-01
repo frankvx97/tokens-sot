@@ -52,3 +52,10 @@ body {
 *::-webkit-scrollbar-thumb:hover {
   background-color: rgba(100, 116, 139, 0.9);
 }
+
+/* Radix ScrollArea: reset inner wrapper from display:table to display:block so
+   flex/grid children can correctly truncate text instead of expanding the scroll container. */
+[data-radix-scroll-area-viewport] > div {
+  display: block !important;
+  min-width: 0 !important;
+}

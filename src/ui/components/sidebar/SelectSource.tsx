@@ -133,12 +133,13 @@ function SelectSourceItem({
       ref={isTopLevel && isDraggable ? setNodeRef : undefined}
       style={style}
       className={cn(
-        isTopLevel && 'rounded-lg border border-slate-800 bg-slate-900/40 overflow-hidden'
+        'min-w-0 overflow-hidden',
+        isTopLevel && 'rounded-lg border border-slate-800 bg-slate-900/40'
       )}
     >
       <div
         className={cn(
-          'group flex text-sm text-slate-300 transition hover:bg-slate-800/60',
+          'group flex text-sm text-slate-300 transition hover:bg-slate-800/60 min-w-0 overflow-hidden',
           isTopLevel ? 'h-12 items-center px-4 gap-2' : 'min-h-8 items-start py-1.5 px-2 rounded-md',
           isBranch && !isEditing && 'cursor-pointer'
         )}
@@ -249,11 +250,11 @@ function SelectSourceItem({
       {isBranch && isOpen && item.children && item.children.length > 0 && (
         <div
           className={cn(
-            'border-t border-slate-800/70 bg-slate-950/40 py-2',
+            'border-t border-slate-800/70 bg-slate-950/40 py-2 min-w-0 overflow-hidden',
             isTopLevel ? 'pl-11 pr-3' : 'pl-7'
           )}
         >
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 min-w-0 overflow-hidden">
             {item.children.map((child) => {
               const childIsBranch = Boolean(child.node.children?.length);
               const childDefaultOpen = !child.node.collapsed || child.partiallySelected || child.selected;
@@ -358,7 +359,7 @@ export const SelectSource: React.FC<SelectSourceProps> = ({
   };
 
   const content = (
-    <ul className="flex flex-col gap-2">
+    <ul className="flex flex-col gap-2 min-w-0 overflow-hidden">
       {orderedItems.map((item) => {
         const defaultOpen = !item.node.collapsed || item.partiallySelected || item.selected;
         const isOpen = openState[item.node.id] ?? defaultOpen;

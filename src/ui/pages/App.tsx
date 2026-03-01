@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FC } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FC, type PointerEvent as ReactPointerEvent } from 'react';
 import { Highlight, themes } from 'prism-react-renderer';
 import { Check, Copy, Download, Maximize2, Minimize2, Settings } from 'lucide-react';
 import { createPluginDispatcher, useAppDispatch, useAppState, usePluginBridge } from '../state/app-state';
@@ -12,6 +12,9 @@ import { getSelectedTokens, getAllTokens } from '../state/selectors';
 import { buildExportArtifacts } from '../exporters';
 import type { NormalizedToken } from '@/shared/types';
 
+const SIDEBAR_MIN_WIDTH = 200;
+const SIDEBAR_DEFAULT_WIDTH = 360;
+
 const AppShell: FC = () => {
   const dispatch = useAppDispatch();
   const bridge = usePluginBridge();
@@ -19,6 +22,7 @@ const AppShell: FC = () => {
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('sass');
   const [isConfigureOpen, setIsConfigureOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const cssLikeFormat = selectedFormat === 'css' || selectedFormat === 'sass' || selectedFormat === 'less' || selectedFormat === 'stylus';
 
   useEffect(() => {
@@ -246,8 +250,8 @@ const AppShell: FC = () => {
       if (rafId) return;
       rafId = window.requestAnimationFrame(() => {
         rafId = undefined;
-        const width = Math.min(Math.max(event.clientX, 720), 1800);
-        const height = Math.min(Math.max(event.clientY, 520), 1400);
+        const width = Math.min(Math.max(event.clientX, 720), window.screen.availWidth || 4096);
+        const height = Math.min(Math.max(event.clientY, 520), window.screen.availHeight || 4096);
         bridge.send({
           type: 'resize-window',
           payload: { width, height }
@@ -279,6 +283,45 @@ const AppShell: FC = () => {
     };
   }, [bridge, state.isBootstrapped, state.windowState.minimized]);
 
+  // Sidebar width drag-to-resize using pointer capture on the splitter element
+  const sidebarRafId = useRef<number | undefined>(undefined);
+
+  const handleSplitterPointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      const target = e.currentTarget;
+      target.setPointerCapture(e.pointerId);
+
+      const onPointerMove = (ev: PointerEvent) => {
+        if (sidebarRafId.current) return;
+        sidebarRafId.current = window.requestAnimationFrame(() => {
+          sidebarRafId.current = undefined;
+          const maxWidth = Math.floor(window.innerWidth * 0.7);
+          const newWidth = Math.min(Math.max(ev.clientX, SIDEBAR_MIN_WIDTH), maxWidth);
+          setSidebarWidth(newWidth);
+        });
+      };
+
+      const cleanup = (ev: PointerEvent) => {
+        target.releasePointerCapture(ev.pointerId);
+        target.removeEventListener('pointermove', onPointerMove);
+        target.removeEventListener('pointerup', cleanup);
+        target.removeEventListener('pointercancel', cleanup);
+        target.removeEventListener('lostpointercapture', cleanup);
+        if (sidebarRafId.current) {
+          window.cancelAnimationFrame(sidebarRafId.current);
+          sidebarRafId.current = undefined;
+        }
+      };
+
+      target.addEventListener('pointermove', onPointerMove);
+      target.addEventListener('pointerup', cleanup);
+      target.addEventListener('pointercancel', cleanup);
+      target.addEventListener('lostpointercapture', cleanup);
+    },
+    []
+  );
+
   if (!state.isBootstrapped) {
     return (
       <div className="flex h-[100vh] flex-col items-center justify-center gap-3 bg-slate-950 text-slate-300">
@@ -306,9 +349,23 @@ const AppShell: FC = () => {
 
   return (
     <>
-      <div className="grid h-screen min-h-0 grid-cols-[360px_minmax(0,1fr)] gap-0 overflow-hidden bg-slate-950 text-slate-100">
+      <div
+        className="grid h-screen min-h-0 gap-0 overflow-hidden bg-slate-950 text-slate-100"
+        style={{ gridTemplateColumns: `${sidebarWidth}px 4px minmax(0,1fr)` }}
+      >
         <AssetSidebar />
-        <main className="flex h-full min-h-0 flex-col overflow-hidden border-l border-slate-800 bg-slate-950">
+        {/* Sidebar resize splitter */}
+        <div
+          id="sidebar-splitter"
+          className="group relative z-10 flex cursor-col-resize items-center justify-center bg-transparent touch-none"
+          title="Drag to resize sidebar"
+          role="separator"
+          aria-orientation="vertical"
+          onPointerDown={handleSplitterPointerDown}
+        >
+          <div className="h-full w-px bg-slate-800 transition-colors group-hover:bg-accent/60 group-active:bg-accent" />
+        </div>
+        <main className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-950">
           <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-900/40 px-4 py-3">
             <div className="flex items-center gap-3">
               <span className="text-xs font-medium uppercase tracking-wider text-slate-400">Preview</span>
@@ -318,6 +375,21 @@ const AppShell: FC = () => {
               <FormatSelector value={selectedFormat} onChange={setSelectedFormat} />
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                size="icon"
+                variant="outline"
+                onClick={() => bridge.send({
+                  type: 'resize-window',
+                  payload: {
+                    width: window.screen.availWidth || 4096,
+                    height: window.screen.availHeight || 4096
+                  }
+                })}
+                title="Expand plugin to full size"
+                aria-label="Expand plugin to full size"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
               <Button
                 size="icon"
                 variant="outline"
