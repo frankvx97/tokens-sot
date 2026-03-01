@@ -11,6 +11,12 @@ const ScrollArea = React.forwardRef<
     className={cn('relative overflow-hidden', className)}
     {...props}
   >
+    {/*
+      Radix wraps children in `display:table; minWidth:100%` which bypasses overflow-hidden
+      on all ancestors. The style tag below resets it to display:block so flex/grid children
+      correctly truncate text instead of expanding the scroll container horizontally.
+    */}
+    <style>{`[data-radix-scroll-area-viewport]>div{display:block!important;min-width:0!important}`}</style>
     <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-inherit">
       {children}
     </ScrollAreaPrimitive.Viewport>

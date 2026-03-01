@@ -136,7 +136,7 @@ export const AssetSidebar: React.FC = () => {
 
       {/* Token Tree List */}
   <ScrollArea className="flex-1 min-h-0">
-        <div className="space-y-2 px-4 pb-4">
+        <div className="space-y-2 px-4 pb-4 min-w-0 overflow-hidden">
           {tree.length ? (
             <SelectSource
               items={tree}

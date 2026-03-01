@@ -102,6 +102,18 @@ export function useTokenTreeWithSelection(): {
     let sourceTree: TokenTreeNode[] = [];
     if (settings.activeSource === 'variables') {
       sourceTree = [...tokens.variables];
+
+      // Apply user-defined collection order immediately in the UI so the
+      // optimistic drag-reorder stays stable before the next bootstrap/refresh.
+      if (settings.collectionOrder?.length) {
+        const order = settings.collectionOrder;
+        sourceTree.sort((a, b) => {
+          const ia = order.indexOf(a.name);
+          const ib = order.indexOf(b.name);
+          return (ia === -1 ? 9999 : ia) - (ib === -1 ? 9999 : ib);
+        });
+      }
+
       if (settings.manualSources.length) {
         sourceTree = [
           ...sourceTree,
