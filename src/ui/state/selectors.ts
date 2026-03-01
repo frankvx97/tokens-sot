@@ -107,10 +107,17 @@ export function useTokenTreeWithSelection(): {
       // optimistic drag-reorder stays stable before the next bootstrap/refresh.
       if (settings.collectionOrder?.length) {
         const order = settings.collectionOrder;
+        const orderIndex = new Map<string, number>();
+        order.forEach((name, idx) => {
+          orderIndex.set(name, idx);
+        });
+        const fallbackIndex = order.length + 1;
         sourceTree.sort((a, b) => {
-          const ia = order.indexOf(a.name);
-          const ib = order.indexOf(b.name);
-          return (ia === -1 ? 9999 : ia) - (ib === -1 ? 9999 : ib);
+          const ia = orderIndex.get(a.name);
+          const ib = orderIndex.get(b.name);
+          const aPos = ia === undefined ? fallbackIndex : ia;
+          const bPos = ib === undefined ? fallbackIndex : ib;
+          return aPos - bPos;
         });
       }
 

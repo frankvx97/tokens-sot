@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FC } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FC, type PointerEvent as ReactPointerEvent } from 'react';
 import { Highlight, themes } from 'prism-react-renderer';
 import { Check, Copy, Download, Maximize2, Minimize2, Settings } from 'lucide-react';
 import { createPluginDispatcher, useAppDispatch, useAppState, usePluginBridge } from '../state/app-state';
@@ -287,7 +287,7 @@ const AppShell: FC = () => {
   const sidebarRafId = useRef<number | undefined>(undefined);
 
   const handleSplitterPointerDown = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
+    (e: ReactPointerEvent<HTMLDivElement>) => {
       e.preventDefault();
       const target = e.currentTarget;
       target.setPointerCapture(e.pointerId);
@@ -302,10 +302,12 @@ const AppShell: FC = () => {
         });
       };
 
-      const onPointerUp = (ev: PointerEvent) => {
+      const cleanup = (ev: PointerEvent) => {
         target.releasePointerCapture(ev.pointerId);
         target.removeEventListener('pointermove', onPointerMove);
-        target.removeEventListener('pointerup', onPointerUp);
+        target.removeEventListener('pointerup', cleanup);
+        target.removeEventListener('pointercancel', cleanup);
+        target.removeEventListener('lostpointercapture', cleanup);
         if (sidebarRafId.current) {
           window.cancelAnimationFrame(sidebarRafId.current);
           sidebarRafId.current = undefined;
@@ -313,7 +315,9 @@ const AppShell: FC = () => {
       };
 
       target.addEventListener('pointermove', onPointerMove);
-      target.addEventListener('pointerup', onPointerUp);
+      target.addEventListener('pointerup', cleanup);
+      target.addEventListener('pointercancel', cleanup);
+      target.addEventListener('lostpointercapture', cleanup);
     },
     []
   );
@@ -355,7 +359,8 @@ const AppShell: FC = () => {
           id="sidebar-splitter"
           className="group relative z-10 flex cursor-col-resize items-center justify-center bg-transparent touch-none"
           title="Drag to resize sidebar"
-          aria-hidden="true"
+          role="separator"
+          aria-orientation="vertical"
           onPointerDown={handleSplitterPointerDown}
         >
           <div className="h-full w-px bg-slate-800 transition-colors group-hover:bg-accent/60 group-active:bg-accent" />
