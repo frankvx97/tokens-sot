@@ -111,7 +111,7 @@ export async function loadVariableTree(options: LoadVariableTreeOptions = {}): P
             ? await buildSingleModeValue(variable, mode, variablesById)
             : undefined;
 
-          const tokenNode = createTokenNode(variable, collection.name, segments, modeValue ? [modeValue] : undefined);
+          const tokenNode = createTokenNode(variable, collection.name, segments, modeValue ? [modeValue] : undefined, mode.modeId);
           insertToken(modeNode as VariableGroupNode, segments, tokenNode, collection.name);
         }
 
@@ -141,11 +141,19 @@ function createTokenNode(
   variable: FigmaVariable,
   collectionName: string,
   segments: string[],
-  modes?: TokenModeValue[]
+  modes?: TokenModeValue[],
+  modeId?: string
 ): TokenTreeNode {
   const kind = inferVariableKind(variable);
   const path = [collectionName, ...segments.slice(0, -1)];
   const name = segments[segments.length - 1] ?? variable.name;
+
+  // In multi-mode collections, append the modeId to make tree-node IDs unique
+  // per mode. The NormalizedToken.id and .sourceId remain the bare Figma
+  // variable ID so export/alias logic is unaffected.
+  const nodeId = modeId
+    ? `variable:${variable.id}:mode:${modeId}`
+    : `variable:${variable.id}`;
 
   const token: NormalizedToken = {
     id: variable.id,
@@ -161,8 +169,8 @@ function createTokenNode(
   };
 
   return {
-    id: `variable:${variable.id}`,
-    key: `variable:${variable.id}`,
+    id: nodeId,
+    key: nodeId,
     name,
     type: 'token',
     sourceType: 'variable',

@@ -1,4 +1,4 @@
-import type { BootstrapPayload, ExportResult, ManualTokenGroup, PluginSettings } from './shared/types';
+import type { BootstrapPayload, ExportResult, ManualTokenGroup, PluginSettings, TokenTreeNode } from './shared/types';
 import type { PluginMessageHandler, PluginWindowState, UIToPluginMessage } from './shared/messages';
 import { loadVariableTree } from './main/figma/variables';
 import { loadStyleTree } from './main/figma/styles';
@@ -129,6 +129,22 @@ async function loadManualSources(): Promise<ManualTokenGroup[]> {
   }
 }
 
+/**
+ * Recursively collect all tree-node IDs from a list of token trees.
+ */
+function collectNodeIds(nodes: TokenTreeNode[]): Set<string> {
+  const ids = new Set<string>();
+  for (const node of nodes) {
+    ids.add(node.id);
+    if (node.children?.length) {
+      for (const id of collectNodeIds(node.children)) {
+        ids.add(id);
+      }
+    }
+  }
+  return ids;
+}
+
 async function gatherBootstrapPayload(): Promise<BootstrapPayload> {
   console.log('Gathering bootstrap payload...');
   try {
@@ -156,7 +172,21 @@ async function gatherBootstrapPayload(): Promise<BootstrapPayload> {
 
     const updatedSettings: PluginSettings = {
       ...settings,
-      manualSources
+      manualSources,
+      // Drop any persisted selectedTokenIds that belong to variable/style trees
+      // but no longer exist in the current tree (e.g. legacy `variable:<id>` IDs
+      // from single-ID format that are now `variable:<id>:mode:<modeId>`).
+      // Non-variable/style IDs (e.g. `manual:…`) are kept as-is since manual
+      // token trees are built on the UI side and are not available here.
+      selectedTokenIds: (() => {
+        const validIds = collectNodeIds(variables.concat(styles));
+        return (settings.selectedTokenIds ?? []).filter((id) => {
+          if (id.startsWith('variable:') || id.startsWith('style:')) {
+            return validIds.has(id);
+          }
+          return true;
+        });
+      })()
     };
 
     // Safely access currentUser with try-catch in case of permission issues
