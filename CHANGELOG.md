@@ -4,6 +4,12 @@ All notable changes made during this session are documented here.
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-03-14
+
+### Fixed
+- Multi-mode variable collections no longer produce duplicate tree-node IDs — each variable/mode pair now gets a unique node ID (`variable:<id>:mode:<modeId>`), while `NormalizedToken.id` retains the original Figma variable ID so export and alias logic is unaffected.
+- `collectSelectableIds` now only marks `token` nodes as selectable; `mode` nodes are excluded, preventing accidental over-selection in multi-mode collections.
+
 ## [1.1.1] - 2026-02-28
 
 ### Added

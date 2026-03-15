@@ -1,6 +1,6 @@
 {
   "name": "tokens-sot",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "type": "module",
   "description": "Figma plugin to export variables and styles as production-ready design tokens.",
   "main": "dist/code.js",
@@ -17,7 +17,7 @@
     "test": "vitest",
     "typecheck": "tsc --noEmit",
     "sync-manifest": "node scripts/sync-manifest-version.cjs",
-    "version": "npm run build && node scripts/sync-manifest-version.cjs && git add dist VERSION"
+    "version": "npm run build && node scripts/sync-manifest-version.cjs && git add -f dist VERSION"
   },
   "author": "",
   "license": "MIT",
