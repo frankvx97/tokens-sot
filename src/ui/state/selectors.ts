@@ -157,7 +157,7 @@ export function flattenTree(node: TokenTreeNode): TokenTreeNode[] {
 
 export function collectSelectableIds(node: TokenTreeNode): string[] {
   if (!node.children?.length) {
-    return node.selectable ? [node.id] : [];
+    return node.type === 'token' && node.selectable ? [node.id] : [];
   }
 
   const childIds = node.children.flatMap((child) => collectSelectableIds(child));
