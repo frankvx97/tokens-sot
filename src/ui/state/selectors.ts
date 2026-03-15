@@ -161,7 +161,7 @@ export function collectSelectableIds(node: TokenTreeNode): string[] {
   }
 
   const childIds = node.children.flatMap((child) => collectSelectableIds(child));
-  if ((node.type === 'token' || node.type === 'mode') && node.selectable) {
+  if (node.type === 'token' && node.selectable) {
     return [node.id, ...childIds];
   }
 
