@@ -38,6 +38,17 @@ jobs:
           fi
           echo "Version is in sync."
 
+      - name: Verify manifest.json has no version field
+        run: |
+          # Figma rejects unknown properties in manifest.json — a 'version' field
+          # causes the plugin to fail to load. This step guards against accidentally
+          # adding one back.
+          if node -e "const m = require('./manifest.json'); if ('version' in m) { console.error('ERROR: manifest.json must not contain a version field'); process.exit(1); } console.log('manifest.json OK — no version field present.');"; then
+            echo "Check passed."
+          else
+            exit 1
+          fi
+
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4
         with:

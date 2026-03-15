@@ -53,12 +53,16 @@ This repo uses `npm version` to bump `package.json`, sync `manifest.json`, build
 
 What `npm version` does automatically (via the `version` lifecycle hook):
 - Runs `npm run build` (full build + typecheck).
-- Runs `node scripts/sync-manifest-version.cjs` to write the new version into `manifest.json`.
-- Stages `dist/` and `manifest.json` so they are included in the version commit.
+- Runs `node scripts/sync-manifest-version.cjs` to write the new version into a `VERSION` text file at the project root (for reference only).
+- Stages `dist/` and `VERSION` so they are included in the version commit.
 - Creates an annotated git tag `v<version>` (e.g. `v1.2.3`).
 
-On tag push, `.github/workflows/release.yml` runs the build again in CI and verifies that
-`package.json`, `manifest.json`, and the git tag all contain the same version number.
+> **Important:** `manifest.json` intentionally has no `version` field — Figma rejects unknown
+> properties and will refuse to load the plugin if one is present. Do not add it.
+
+On tag push, `.github/workflows/release.yml` runs the build again in CI, verifies that
+`package.json` and the git tag contain the same version number, and asserts that
+`manifest.json` contains no `version` field.
 
 ## Editor / tooling rules
 - No Cursor rules found in `.cursor/rules/` or `.cursorrules`.
