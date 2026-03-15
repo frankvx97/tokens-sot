@@ -40,7 +40,7 @@ This guide is for agentic coding assistants working in this repo.
 Note: No test files were found in the repo right now.
 
 ### Versioning (patch/minor/major)
-This repo uses `npm version` to bump `package.json`, sync `manifest.json`, build, and create a git tag — all in one command.
+This repo uses `npm version` to bump `package.json`, build the plugin, write the version to the root `VERSION` file, and create a git tag — all in one command.
 
 **Release workflow:**
 1. Ensure the working tree is clean (commit or stash any changes first).
