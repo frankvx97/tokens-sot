@@ -37,6 +37,20 @@ const config: Config = {
       },
       boxShadow: {
         elevation: '0 10px 30px rgba(15, 23, 42, 0.35)'
+      },
+      keyframes: {
+        'dialog-overlay-in': {
+          from: { opacity: '0' },
+          to: { opacity: '1' }
+        },
+        'dialog-content-in': {
+          from: { opacity: '0', scale: '0.96' },
+          to: { opacity: '1', scale: '1' }
+        }
+      },
+      animation: {
+        'dialog-overlay-in': 'dialog-overlay-in 150ms ease-out',
+        'dialog-content-in': 'dialog-content-in 200ms ease-out'
       }
     }
   }

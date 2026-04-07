@@ -87,6 +87,12 @@ export interface TypographyTokenValue {
     paragraphSpacing: number;
     textCase?: string;
     textDecoration?: string;
+    // Alias references (variable binding names from Figma bound variables)
+    fontFamilyAlias?: string;
+    fontSizeAlias?: string;
+    lineHeightAlias?: string;
+    letterSpacingAlias?: string;
+    fontWeightAlias?: string;
   };
 }
 
@@ -147,7 +153,7 @@ export interface RGBA {
   a: number;
 }
 
-export type TokenFormat = 'css' | 'sass' | 'tailwind' | 'stylus' | 'js' | 'json' | 'less';
+export type TokenFormat = 'css' | 'sass' | 'tailwind' | 'tailwindv4' | 'stylus' | 'js' | 'json' | 'less';
 
 export type TokenCasing =
   | 'lowerCamelCase'
@@ -159,6 +165,8 @@ export type TokenCasing =
 export type ColorFormat = 'hex' | 'rgb' | 'hsl';
 
 export type ExportFileStrategy = 'single' | 'multiple';
+
+export type TypographyFormat = 'default' | 'mixins';
 
 export interface ExportOptions {
   format: TokenFormat;
@@ -173,6 +181,14 @@ export interface ExportOptions {
   addFallback: boolean;
   separateModes: boolean;
   includeIndexFile: boolean;
+  /** Controls whether Sass/Less emit map/shorthand (default) or mixin format */
+  typographyFormat?: TypographyFormat;
+  /** When true and format is JSON, emit DTCG-compliant structure */
+  useDTCG?: boolean;
+  /** Emit .text-{name} CSS utility classes alongside custom properties (CSS format only) */
+  emitUtilityClasses?: boolean;
+  /** Per-family font fallback stacks, e.g. { "Outfit": "system-ui, sans-serif" } */
+  fontFallbacks?: Record<string, string>;
 }
 
 export interface PluginSettings {

@@ -7,7 +7,7 @@ import {
   SelectValue
 } from '../ui/select';
 
-export type ExportFormat = 'css' | 'sass' | 'tailwind' | 'stylus' | 'js' | 'json' | 'less';
+export type ExportFormat = 'css' | 'sass' | 'tailwind' | 'tailwindv4' | 'stylus' | 'js' | 'json' | 'less';
 
 interface FormatOption {
   value: ExportFormat;
@@ -18,7 +18,8 @@ interface FormatOption {
 const FORMAT_OPTIONS: FormatOption[] = [
   { value: 'css', label: 'CSS' },
   { value: 'sass', label: 'Sass' },
-  { value: 'tailwind', label: 'Tailwind' },
+  { value: 'tailwind', label: 'Tailwind v3' },
+  { value: 'tailwindv4', label: 'Tailwind v4' },
   { value: 'stylus', label: 'Stylus' },
   { value: 'js', label: 'JavaScript' },
   { value: 'json', label: 'JSON' },

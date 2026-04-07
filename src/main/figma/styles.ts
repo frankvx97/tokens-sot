@@ -66,11 +66,11 @@ export async function loadStyleTree(options: LoadStyleTreeOptions = {}): Promise
       const styles = await root.loader();
       console.log(`Loaded ${styles.length} ${root.label}`);
       // Process styles in the order returned by Figma API to preserve panel order
-      styles.forEach((style) => {
+      for (const style of styles) {
         const segments = normalizeName(style.name);
-        const tokenNode = createStyleTokenNode(style, root, effectiveLabel, segments, includeValues);
+        const tokenNode = await createStyleTokenNode(style, root, effectiveLabel, segments, includeValues);
         insertStyleToken(destination, segments, tokenNode, effectiveLabel);
-      });
+      }
     }
 
     console.log('Style tree loaded successfully');
@@ -89,13 +89,13 @@ function normalizeName(name: string): string[] {
     .filter(Boolean);
 }
 
-function createStyleTokenNode(
+async function createStyleTokenNode(
   style: BaseStyle,
   root: (typeof STYLE_ROOTS)[number],
   effectiveLabel: string,
   segments: string[],
   includeValues: boolean
-): TokenTreeNode {
+): Promise<TokenTreeNode> {
   const name = segments[segments.length - 1] ?? style.name;
   const path = [effectiveLabel, ...segments.slice(0, -1)];
 
@@ -113,7 +113,7 @@ function createStyleTokenNode(
       {
         modeId: 'default',
         modeName: 'Default',
-        value: includeValues ? toStyleValue(style, root.kind) : null
+        value: includeValues ? await toStyleValue(style, root.kind) : null
       }
     ]
   };
@@ -174,12 +174,12 @@ function insertStyleToken(
 // Styles appear in the exact order returned by Figma's style APIs
 // Groups and tokens maintain insertion order without alphabetical sorting
 
-function toStyleValue(style: BaseStyle, kind: TokenKind) {
+async function toStyleValue(style: BaseStyle, kind: TokenKind) {
   switch (kind) {
     case 'color':
       return convertPaintStyle(style as PaintStyle);
     case 'typography':
-      return convertTextStyle(style as TextStyle);
+      return await convertTextStyle(style as TextStyle);
     case 'shadow':
       return convertEffectStyle(style as EffectStyle);
     default:
@@ -342,7 +342,31 @@ function getLinearGradientAngle(transform: Transform): number {
   return Math.round(angleDeg * 10) / 10;
 }
 
-function convertTextStyle(style: TextStyle) {
+async function resolveVariableName(binding: { id: string } | undefined): Promise<string | undefined> {
+  if (!binding?.id) return undefined;
+  try {
+    const variable = await figma.variables.getVariableByIdAsync(binding.id);
+    if (!variable) return undefined;
+    return variable.name;
+  } catch {
+    return undefined;
+  }
+}
+
+async function convertTextStyle(style: TextStyle) {
+  // Check for bound variables on the text style
+  const bindings = (style as any).boundVariables as Record<string, { id: string }> | undefined;
+
+  const [fontFamilyAlias, fontSizeAlias, fontWeightAlias, lineHeightAlias, letterSpacingAlias] =
+    await Promise.all([
+      resolveVariableName(bindings?.fontFamily),
+      resolveVariableName(bindings?.fontSize),
+      // Figma binds font weight through the "fontStyle" key (the named weight like "SemiBold")
+      resolveVariableName(bindings?.fontStyle ?? bindings?.fontWeight),
+      resolveVariableName(bindings?.lineHeight),
+      resolveVariableName(bindings?.letterSpacing),
+    ]);
+
   return {
     type: 'typography',
     value: {
@@ -354,7 +378,12 @@ function convertTextStyle(style: TextStyle) {
       letterSpacing: style.letterSpacing.value ?? 0,
       paragraphSpacing: style.paragraphSpacing ?? 0,
       textCase: style.textCase ?? 'ORIGINAL',
-      textDecoration: style.textDecoration ?? 'NONE'
+      textDecoration: style.textDecoration ?? 'NONE',
+      ...(fontFamilyAlias && { fontFamilyAlias }),
+      ...(fontSizeAlias && { fontSizeAlias }),
+      ...(fontWeightAlias && { fontWeightAlias }),
+      ...(lineHeightAlias && { lineHeightAlias }),
+      ...(letterSpacingAlias && { letterSpacingAlias }),
     }
   } as NormalizedToken['modes'][number]['value'];
 }
