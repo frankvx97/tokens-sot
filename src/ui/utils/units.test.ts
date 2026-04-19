@@ -117,6 +117,10 @@ describe('buildFontStack', () => {
     expect(buildFontStack('Outfit', { Outfit: '' })).toBe('Outfit');
   });
 
+  it('omits the fallback when the record entry is only whitespace', () => {
+    expect(buildFontStack('Outfit', { Outfit: '   ' })).toBe('Outfit');
+  });
+
   it('trims whitespace around fallback values from the record', () => {
     expect(buildFontStack('Outfit', { Outfit: '  system-ui, sans-serif  ' })).toBe(
       'Outfit, system-ui, sans-serif',

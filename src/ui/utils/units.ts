@@ -78,7 +78,7 @@ export function quoteFontFamily(family: string): string {
 export function buildFontStack(family: string, fallbacks?: Record<string, string>): string {
   const quoted = quoteFontFamily(family);
   const fallback = fallbacks?.[family]?.trim();
-  if (fallback) {
+  if (fallback && fallback.length > 0) {
     return `${quoted}, ${fallback}`;
   }
   return quoted;
