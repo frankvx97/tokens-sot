@@ -4,6 +4,37 @@ All notable changes made during this session are documented here.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-04-18
+
+### Added
+- **CSS: Typography format toggle** (Configure → CSS → Typography Format). Switches between grouped `.text-{name} { ... }` utility classes (default) and flat per-axis custom properties (`--token-font-family`, `--token-font-size`, etc.).
+- **CSS: HTML Element Defaults** section (Configure → CSS). Three opt-in toggles:
+  - "Include body baseline" — emits a `body { ... }` rule from a user-selected body/paragraph token (dropdown populated from the current selection).
+  - "Include h1–h6 element defaults" — maps heading tokens to `h1..h6` by font-size rank (capped at 6).
+  - "Add text-wrap: balance to headings" — applies `text-wrap: balance` to heading utility classes and `h1..h6` rules.
+- Heading/body detection driven by Figma group path (case-insensitive match for `heading(s)?` / `body|paragraph(s)?`).
+- **Tailwind v4 exporter** — `@theme` directive with `--font-*`, `--text-*`, and `--text-*--{modifier}` naming; `@layer components` for `textTransform` and `textDecoration`.
+- **DTCG JSON format** — W3C Design Tokens Community Group spec output (`$type` / `$value`) via the "Use DTCG format" option.
+- **Sass/Less typography format toggle** — switch between the default map/variable shape and a mixins shape (`@mixin token-name { ... }` / `.token-name() { ... }`).
+- **User-configurable font fallback stacks** per font family, auto-detected from selected typography tokens.
+- **Output Format selector inside Configure modal** with live conditional sections for format-specific settings.
+- 18 new unit tests covering heading/body predicates, `:root` wrapper behavior, body baseline emission, `h1..h6` ranking/capping, and text-wrap balance scoping.
+
+### Fixed
+- **Empty `:root {}` block**: typography-only CSS exports no longer emit a stray empty `:root { }` wrapper. The block is only written when it contains at least one declaration.
+- **Modal glitch**: entry animations added to prevent a `backdrop-blur` flash where content was briefly visible before the blur composited.
+- **Modal positioning**: switched from `transform: scale(...)` to CSS `scale` so the Radix translate-based centering isn't overridden.
+- **Bound variables on text styles** now resolve — `fontFamily`, `fontSize`, `fontWeight`, `lineHeight`, and `letterSpacing` aliases are preserved in the exported output instead of being flattened to literals.
+- **Lossy font shorthand** replaced with per-axis CSS custom properties so every typography dimension is individually addressable.
+- **Letter-spacing float garbage** (e.g. `-0.6000000238418579`) is now rounded to 3 decimals before emission.
+- **Multi-word font families** are quoted correctly in the output (`"DM Mono"`).
+- **Font-weight string variables** (e.g. `Regular`, `Semibold`, `Bold`) convert to numeric CSS values (`400`, `600`, `700`).
+- **Whitespace-only font fallback values** are treated as empty and don't produce stray commas in the font stack.
+
+### Changed
+- "Tailwind" format renamed to "Tailwind v3" to disambiguate from the new v4 exporter.
+- `textCase` → `text-transform` and `textDecoration` → `text-decoration` support added to every exporter (previously CSS-only).
+
 ## [1.1.2] - 2026-03-14
 
 ### Fixed
