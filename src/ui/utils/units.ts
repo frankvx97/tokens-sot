@@ -63,6 +63,9 @@ export function formatLetterSpacing(letterSpacing: number, unit: UnitType, baseF
  * Wrap a font family name in double quotes if it contains spaces.
  */
 export function quoteFontFamily(family: string): string {
+  if (/^".*"$/.test(family)) {
+    return family;
+  }
   if (/\s/.test(family)) {
     return `"${family}"`;
   }
@@ -74,7 +77,7 @@ export function quoteFontFamily(family: string): string {
  */
 export function buildFontStack(family: string, fallbacks?: Record<string, string>): string {
   const quoted = quoteFontFamily(family);
-  const fallback = fallbacks?.[family];
+  const fallback = fallbacks?.[family]?.trim();
   if (fallback) {
     return `${quoted}, ${fallback}`;
   }

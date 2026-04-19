@@ -2,7 +2,7 @@ import type { ExportOptions } from '@/shared/types';
 import type { TokenSection, TokenSectionEntry } from './types';
 import { toCasing } from '../utils/casing';
 import { formatColor, formatCompositeColor } from '../utils/color';
-import { pxToRem, roundTo, quoteFontFamily, buildFontStack } from '../utils/units';
+import { pxToRem, roundTo, quoteFontFamily } from '../utils/units';
 
 export function renderTailwind(sections: TokenSection[], options: ExportOptions, _modeInFileName?: boolean): string {
   if (!sections.length) {

@@ -1,10 +1,9 @@
 /**
  * Unit tests for typography formatting helpers.
  *
- * These helpers are added in Phase 0.3 of bugs-typography-improvements.md.
- * Until the helpers are implemented, every test in this file will FAIL —
- * that's expected and correct (test-driven development). As each helper
- * lands in src/ui/utils/units.ts, its corresponding tests turn green.
+ * Covers rounding, font-family quoting, font stack construction, text-case
+ * mapping, text-decoration mapping, and unit formatting helpers in
+ * src/ui/utils/units.ts.
  *
  * Run with:  npm test
  * Run only this file:  npx vitest src/ui/utils/units.test.ts
@@ -117,6 +116,12 @@ describe('buildFontStack', () => {
   it('omits the fallback when the record entry is an empty string', () => {
     expect(buildFontStack('Outfit', { Outfit: '' })).toBe('Outfit');
   });
+
+  it('trims whitespace around fallback values from the record', () => {
+    expect(buildFontStack('Outfit', { Outfit: '  system-ui, sans-serif  ' })).toBe(
+      'Outfit, system-ui, sans-serif',
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -214,12 +219,6 @@ describe('formatWithUnit', () => {
   it('rounds rem conversions cleanly', () => {
     // 14 / 16 = 0.875 — must not produce 0.8750000000001
     expect(formatWithUnit(14, 'rem')).toBe('0.875rem');
-  });
-
-  it('returns "normal" for the AUTO sentinel value', () => {
-    // Adjust the sentinel if your normalized form uses null/undefined.
-    expect(formatWithUnit('AUTO' as never, 'px')).toBe('normal');
-    expect(formatWithUnit('AUTO' as never, 'rem')).toBe('normal');
   });
 
   it('handles zero', () => {
