@@ -45,7 +45,10 @@ const defaultExportOptions: ExportOptions = {
   includeIndexFile: false,
   typographyFormat: 'default',
   useDTCG: false,
-  emitUtilityClasses: false,
+  cssTypographyFormat: 'classes',
+  cssIncludeBodyBaseline: false,
+  cssIncludeHeadingDefaults: false,
+  cssHeadingTextWrapBalance: false,
   fontFallbacks: {}
 };
 

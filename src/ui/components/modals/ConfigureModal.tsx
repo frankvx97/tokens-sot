@@ -193,6 +193,22 @@ export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose,
     return Array.from(families).sort();
   }, [state]);
 
+  // Body/paragraph typography tokens available for the body-baseline picker.
+  // Matches against Figma group path (e.g. "body", "paragraph", "paragraphs").
+  const bodyTokenOptions = React.useMemo(() => {
+    const tokens = getSelectedTokens(state);
+    return tokens
+      .filter(
+        (token: NormalizedToken) =>
+          token.kind === 'typography' &&
+          (token.groupPath ?? []).some((g) => /^(body|paragraphs?)$/i.test(g))
+      )
+      .map((token: NormalizedToken) => ({
+        id: token.id,
+        label: [...(token.groupPath ?? []), token.name].join(' / ')
+      }));
+  }, [state]);
+
   const updateFontFallback = (family: string, fallback: string) => {
     setLocalSettings((prev) => ({
       ...prev,
@@ -309,14 +325,61 @@ export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose,
               </SettingsSection>
             )}
 
-            {/* CSS-specific options */}
+            {/* CSS Typography format toggle */}
             {activeFormat === 'css' && (
-              <SettingsSection title="CSS Options">
+              <SettingsSection title="Typography">
+                <OptionGroup
+                  label="Typography Format"
+                  options={[
+                    { label: 'Classes', value: 'classes' },
+                    { label: 'Custom Properties', value: 'properties' },
+                  ]}
+                  value={localSettings.cssTypographyFormat ?? 'classes'}
+                  onChange={(value) => updateSetting('cssTypographyFormat', value as 'classes' | 'properties')}
+                />
+              </SettingsSection>
+            )}
+
+            {/* CSS HTML element defaults */}
+            {activeFormat === 'css' && (
+              <SettingsSection title="HTML Element Defaults">
                 <CheckboxRow
-                  label="Emit Utility Classes"
-                  description="Generate .text-{name} CSS classes that reference the custom properties"
-                  checked={localSettings.emitUtilityClasses ?? false}
-                  onChange={(checked) => updateSetting('emitUtilityClasses', checked)}
+                  label="Include body baseline"
+                  description="Emits a body { ... } rule using a selected body/paragraph token."
+                  checked={localSettings.cssIncludeBodyBaseline ?? false}
+                  onChange={(checked) => updateSetting('cssIncludeBodyBaseline', checked)}
+                />
+                {localSettings.cssIncludeBodyBaseline && (
+                  <div className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+                    <span className="min-w-[100px] shrink-0 text-sm font-medium text-slate-200">Body token</span>
+                    <select
+                      value={localSettings.cssBodyBaselineTokenId ?? ''}
+                      onChange={(e) => updateSetting('cssBodyBaselineTokenId', e.target.value || undefined)}
+                      className="flex-1 rounded-md border border-slate-700 bg-slate-900/60 px-2.5 py-1.5 text-xs text-slate-200 focus:border-accent focus:outline-none"
+                    >
+                      <option value="">Select a token…</option>
+                      {bodyTokenOptions.map((opt) => (
+                        <option key={opt.id} value={opt.id}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {localSettings.cssIncludeBodyBaseline && bodyTokenOptions.length === 0 && (
+                  <div className="px-3 text-xs text-slate-500">
+                    No body/paragraph typography tokens in the current selection. Organize typography styles under a group named “body” or “paragraph” in Figma.
+                  </div>
+                )}
+                <CheckboxRow
+                  label="Include h1–h6 element defaults"
+                  description="Maps heading tokens (group “headings”) to h1…h6 by font-size rank."
+                  checked={localSettings.cssIncludeHeadingDefaults ?? false}
+                  onChange={(checked) => updateSetting('cssIncludeHeadingDefaults', checked)}
+                />
+                <CheckboxRow
+                  label="Add text-wrap: balance to headings"
+                  description="Applies text-wrap: balance to heading utility classes and h1–h6 rules."
+                  checked={localSettings.cssHeadingTextWrapBalance ?? false}
+                  onChange={(checked) => updateSetting('cssHeadingTextWrapBalance', checked)}
                 />
               </SettingsSection>
             )}

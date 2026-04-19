@@ -98,7 +98,7 @@ export const fontWeightStringToken = (weight: string): NormalizedToken =>
     key: `fonts-weight-${weight.toLowerCase()}`,
     name: weight.toLowerCase(),
     groupPath: ['fonts', 'weight'],
-    kind: 'string',
+    kind: 'custom',
     value: weight, // e.g., 'Regular', 'Semibold', 'Bold'
   } as Partial<NormalizedToken>);
 

@@ -1,13 +1,21 @@
-import type { ExportOptions } from '@/shared/types';
+import type { ExportOptions, NormalizedToken } from '@/shared/types';
 import type { TokenSection, TokenSectionEntry } from './types';
 import { toCasing } from '../utils/casing';
 import { formatColor, formatGradient, formatCompositeColor } from '../utils/color';
 import { formatWithUnit, formatLineHeight, formatLetterSpacing, buildFontStack, mapTextCase, mapTextDecoration, isLikelyFontWeight, mapFontWeightString } from '../utils/units';
 import { shouldShowModeNames, buildSectionLabel } from './sections';
 
-interface TypographyUtilityEntry {
-  varName: string;
-  properties: string[];
+interface TypographyClassEntry {
+  entry: TokenSectionEntry;
+  modeName: string | null;
+}
+
+export function isHeadingToken(token: NormalizedToken): boolean {
+  return token.groupPath?.some((g) => /^headings?$/i.test(g)) ?? false;
+}
+
+export function isBodyToken(token: NormalizedToken): boolean {
+  return token.groupPath?.some((g) => /^(body|paragraphs?)$/i.test(g)) ?? false;
 }
 
 export function renderCSS(sections: TokenSection[], options: ExportOptions, modeInFileName?: boolean): string {
@@ -15,60 +23,128 @@ export function renderCSS(sections: TokenSection[], options: ExportOptions, mode
     return '/* No tokens selected */\n';
   }
 
-  const lines: string[] = [':root {'];
   const showModes = shouldShowModeNames(sections);
   const includeModeInName = showModes && !modeInFileName;
-  const utilityEntries: TypographyUtilityEntry[] = [];
+  const classesMode = (options.cssTypographyFormat ?? 'classes') === 'classes';
+  const typographyClassEntries: TypographyClassEntry[] = [];
+  const rootLines: string[] = [];
 
-  sections.forEach((section, sectionIndex) => {
+  sections.forEach((section) => {
     const label = buildSectionLabel(section, showModes);
-    lines.push('');
-    lines.push(`  /* ${label} */`);
-    section.entries.forEach((entry) => {
-      const modeName = includeModeInName ? section.modeName : null;
-      const declarations = buildCSSDeclarations(entry, options, modeName);
-      declarations.forEach((decl) => lines.push(`  ${decl}`));
+    const modeName = includeModeInName ? section.modeName : null;
+    const sectionLines: string[] = [];
 
-      // Collect typography entries for utility classes
-      if (options.emitUtilityClasses && entry.mode.value?.type === 'typography') {
-        const varName = generateCSSVarName(entry.token, options.casing, modeName, options.includeTopLevelName);
-        const props = buildTypographyPropertyNames(entry.mode.value.value);
-        utilityEntries.push({ varName, properties: props });
+    section.entries.forEach((entry) => {
+      const isTypography = entry.mode.value?.type === 'typography';
+      if (classesMode && isTypography) {
+        typographyClassEntries.push({ entry, modeName });
+        return;
       }
+      const declarations = buildCSSDeclarations(entry, options, modeName);
+      declarations.forEach((decl) => sectionLines.push(`  ${decl}`));
     });
-    if (sectionIndex === sections.length - 1) {
-      lines.push('');
+
+    if (sectionLines.length > 0) {
+      rootLines.push('');
+      rootLines.push(`  /* ${label} */`);
+      rootLines.push(...sectionLines);
     }
   });
 
-  lines.push('}');
+  const output: string[] = [];
 
-  // Emit composite utility classes if enabled
-  if (options.emitUtilityClasses && utilityEntries.length > 0) {
-    lines.push('');
-    lines.push('/* Typography Utilities */');
-    utilityEntries.forEach(({ varName, properties }) => {
-      // .text-heading-2xl from --heading-2xl
-      const className = varName.replace(/^--/, '.text-');
-      lines.push(`${className} {`);
-      properties.forEach((prop) => {
-        lines.push(`  ${prop}: var(${varName}-${prop});`);
-      });
-      lines.push('}');
-      lines.push('');
-    });
-  } else {
-    lines.push('');
+  if (rootLines.length > 0) {
+    output.push(':root {');
+    output.push(...rootLines);
+    output.push('');
+    output.push('}');
   }
 
-  return lines.join('\n');
+  if (typographyClassEntries.length > 0) {
+    if (output.length > 0) output.push('');
+    output.push('/* Typography */');
+    typographyClassEntries.forEach(({ entry, modeName }) => {
+      const varName = generateCSSVarName(entry.token, options.casing, modeName, options.includeTopLevelName);
+      const className = varName.replace(/^--/, '.text-');
+      const body = buildCSSTypographyClassBody(entry, options, isHeadingToken(entry.token));
+      output.push('');
+      output.push(`${className} {`);
+      body.forEach((line) => output.push(`  ${line}`));
+      output.push('}');
+    });
+  }
+
+  const elementBlocks = buildElementDefaultBlocks(sections, options);
+  if (elementBlocks.length > 0) {
+    if (output.length > 0) output.push('');
+    output.push('/* Base element defaults */');
+    elementBlocks.forEach((block) => {
+      output.push('');
+      output.push(...block);
+    });
+  }
+
+  if (output.length === 0) {
+    return '/* No tokens selected */\n';
+  }
+
+  output.push('');
+  return output.join('\n');
 }
 
-function buildTypographyPropertyNames(typo: { textCase?: string; textDecoration?: string }): string[] {
-  const props = ['font-family', 'font-size', 'line-height', 'font-weight', 'letter-spacing'];
-  if (mapTextCase(typo.textCase)) props.push('text-transform');
-  if (mapTextDecoration(typo.textDecoration)) props.push('text-decoration');
-  return props;
+function buildElementDefaultBlocks(sections: TokenSection[], options: ExportOptions): string[][] {
+  const blocks: string[][] = [];
+
+  const typographyEntries: TokenSectionEntry[] = [];
+  sections.forEach((section) => {
+    section.entries.forEach((entry) => {
+      if (entry.mode.value?.type === 'typography') {
+        typographyEntries.push(entry);
+      }
+    });
+  });
+
+  if (options.cssIncludeBodyBaseline && options.cssBodyBaselineTokenId) {
+    const bodyEntry = typographyEntries.find((e) => e.token.id === options.cssBodyBaselineTokenId);
+    if (bodyEntry && bodyEntry.mode.value?.type === 'typography') {
+      const typo = bodyEntry.mode.value.value;
+      const cas = options.casing;
+      const block: string[] = ['body {'];
+      block.push(`  font-family: ${formatCSSAliasRef(typo.fontFamilyAlias, cas) ?? buildFontStack(typo.fontFamily, options.fontFallbacks)};`);
+      block.push(`  font-size: ${formatCSSAliasRef(typo.fontSizeAlias, cas) ?? formatWithUnit(typo.fontSize, options.unit)};`);
+      block.push(`  line-height: ${formatCSSAliasRef(typo.lineHeightAlias, cas) ?? formatLineHeight(typo.lineHeight, options.unit)};`);
+      block.push(`  font-weight: ${formatCSSAliasRef(typo.fontWeightAlias, cas) ?? String(typo.fontWeight)};`);
+      block.push('}');
+      blocks.push(block);
+    }
+  }
+
+  if (options.cssIncludeHeadingDefaults) {
+    const headingEntries = typographyEntries.filter((e) => isHeadingToken(e.token));
+    const seen = new Set<string>();
+    const uniqueHeadings = headingEntries.filter((e) => {
+      if (seen.has(e.token.id)) return false;
+      seen.add(e.token.id);
+      return true;
+    });
+    uniqueHeadings.sort((a, b) => {
+      const aSize = a.mode.value?.type === 'typography' ? (a.mode.value.value.fontSize ?? 0) : 0;
+      const bSize = b.mode.value?.type === 'typography' ? (b.mode.value.value.fontSize ?? 0) : 0;
+      return bSize - aSize;
+    });
+    const top = uniqueHeadings.slice(0, 6);
+    top.forEach((entry, index) => {
+      const selector = `h${index + 1}`;
+      const body = buildCSSTypographyClassBody(entry, options, true);
+      if (body.length === 0) return;
+      const block: string[] = [`${selector} {`];
+      body.forEach((line) => block.push(`  ${line}`));
+      block.push('}');
+      blocks.push(block);
+    });
+  }
+
+  return blocks;
 }
 
 function buildCSSDeclarations(entry: TokenSectionEntry, options: ExportOptions, modeName: string | null): string[] {
@@ -139,6 +215,30 @@ function buildCSSTypographyDeclarations(
   }
 
   return decls;
+}
+
+function buildCSSTypographyClassBody(entry: TokenSectionEntry, options: ExportOptions, isHeading = false): string[] {
+  if (entry.mode.value?.type !== 'typography') return [];
+  const typo = entry.mode.value.value;
+  const cas = options.casing;
+  const lines: string[] = [];
+
+  lines.push(`font-family: ${formatCSSAliasRef(typo.fontFamilyAlias, cas) ?? buildFontStack(typo.fontFamily, options.fontFallbacks)};`);
+  lines.push(`font-size: ${formatCSSAliasRef(typo.fontSizeAlias, cas) ?? formatWithUnit(typo.fontSize, options.unit)};`);
+  lines.push(`line-height: ${formatCSSAliasRef(typo.lineHeightAlias, cas) ?? formatLineHeight(typo.lineHeight, options.unit)};`);
+  lines.push(`font-weight: ${formatCSSAliasRef(typo.fontWeightAlias, cas) ?? String(typo.fontWeight)};`);
+  lines.push(`letter-spacing: ${formatCSSAliasRef(typo.letterSpacingAlias, cas) ?? formatLetterSpacing(typo.letterSpacing, options.unit)};`);
+
+  const tt = mapTextCase(typo.textCase);
+  if (tt) lines.push(`text-transform: ${tt};`);
+  const td = mapTextDecoration(typo.textDecoration);
+  if (td) lines.push(`text-decoration: ${td};`);
+
+  if (isHeading && options.cssHeadingTextWrapBalance) {
+    lines.push('text-wrap: balance;');
+  }
+
+  return lines;
 }
 
 function generateCSSVarName(

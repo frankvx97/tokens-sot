@@ -185,8 +185,16 @@ export interface ExportOptions {
   typographyFormat?: TypographyFormat;
   /** When true and format is JSON, emit DTCG-compliant structure */
   useDTCG?: boolean;
-  /** Emit .text-{name} CSS utility classes alongside custom properties (CSS format only) */
-  emitUtilityClasses?: boolean;
+  /** CSS typography output shape: grouped .text-{name} classes (default) or flat per-axis custom properties */
+  cssTypographyFormat?: 'classes' | 'properties';
+  /** CSS only: emit a body { ... } baseline rule from the selected body token */
+  cssIncludeBodyBaseline?: boolean;
+  /** CSS only: id of the typography token used for the body baseline */
+  cssBodyBaselineTokenId?: string;
+  /** CSS only: emit h1..h6 rules mapped from heading tokens by font-size rank */
+  cssIncludeHeadingDefaults?: boolean;
+  /** CSS only: add text-wrap: balance to heading utility classes */
+  cssHeadingTextWrapBalance?: boolean;
   /** Per-family font fallback stacks, e.g. { "Outfit": "system-ui, sans-serif" } */
   fontFallbacks?: Record<string, string>;
 }

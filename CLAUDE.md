@@ -37,7 +37,7 @@ src/
 
 | Format | Typography Output |
 |--------|-------------------|
-| **CSS** | Individual custom properties per axis (`--token-font-family`, `--token-font-size`, etc.). Optional `.text-{name}` utility classes via `emitUtilityClasses` option. |
+| **CSS** | Default: grouped `.text-{name} { ... }` classes. `cssTypographyFormat: 'properties'` switches to flat per-axis custom properties (`--token-font-family`, `--token-font-size`, etc.). |
 | **Sass** | Default: Sass map `(font-family: ..., font-size: ..., text-transform: ...)`. Mixins mode: `@mixin token-name { ... }` via `typographyFormat: 'mixins'` |
 | **Less** | Default: Individual variables (`@token-font-family`, etc.). Mixins mode: `.token-name() { ... }` via `typographyFormat: 'mixins'` |
 | **Stylus** | Hash object with all properties |
@@ -56,14 +56,14 @@ src/
 ### ExportOptions Typography Fields
 - `typographyFormat: 'default' | 'mixins'` — Sass/Less typography output style
 - `useDTCG: boolean` — JSON DTCG standard compliance
-- `emitUtilityClasses: boolean` — CSS utility class generation
+- `cssTypographyFormat: 'classes' | 'properties'` — CSS typography output shape (default `'classes'`)
 - `fontFallbacks: Record<string, string>` — Per-family fallback stacks
 
 ## Configure Modal
 
 Format-specific sections appear conditionally:
 - **Sass/Less**: Typography Format toggle (Default / Mixins)
-- **CSS**: "Emit Utility Classes" checkbox
+- **CSS**: Typography Format toggle (Classes / Custom Properties)
 - **JSON**: "Use DTCG format" checkbox
 - **All formats**: Font Fallbacks editor (auto-detects families from selected typography tokens)
 

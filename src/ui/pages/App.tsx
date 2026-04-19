@@ -19,7 +19,7 @@ const AppShell: FC = () => {
   const dispatch = useAppDispatch();
   const bridge = usePluginBridge();
   const state = useAppState();
-  const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('sass');
+  const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('css');
   const [isConfigureOpen, setIsConfigureOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);

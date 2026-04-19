@@ -11,18 +11,26 @@
 import type { ExportOptions } from '@/shared/types';
 
 export const defaultOptions: ExportOptions = {
-  // Existing options (adjust to match your real defaults)
+  format: 'css',
+  casing: 'kebab-case',
+  color: 'hex',
   unit: 'px',
-  colorFormat: 'hex',
-  casing: 'kebab',
-  exportStrategy: 'singleFile',
-
-  // New options added in bugs-typography-improvements (Phase 0.2)
+  exportFileStrategy: 'single',
+  includeTopLevelName: false,
+  includeAllModes: true,
+  ignoreAliases: false,
+  useRootAlias: false,
+  addFallback: false,
+  separateModes: false,
+  includeIndexFile: false,
   typographyFormat: 'default',
   useDTCG: false,
-  emitUtilityClasses: false,
+  cssTypographyFormat: 'classes',
+  cssIncludeBodyBaseline: false,
+  cssIncludeHeadingDefaults: false,
+  cssHeadingTextWrapBalance: false,
   fontFallbacks: {},
-} as ExportOptions;
+};
 
 export const optionsWith = (overrides: Partial<ExportOptions>): ExportOptions => ({
   ...defaultOptions,

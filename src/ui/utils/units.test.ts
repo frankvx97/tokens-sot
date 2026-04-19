@@ -94,30 +94,28 @@ describe('quoteFontFamily', () => {
 // ---------------------------------------------------------------------------
 
 describe('buildFontStack', () => {
-  it('combines a quoted multi-word family with a fallback string', () => {
-    expect(buildFontStack('DM Mono', 'ui-monospace, monospace')).toBe(
+  it('combines a quoted multi-word family with a fallback from the record', () => {
+    expect(buildFontStack('DM Mono', { 'DM Mono': 'ui-monospace, monospace' })).toBe(
       '"DM Mono", ui-monospace, monospace',
     );
   });
 
   it('combines an unquoted single-word family with a fallback', () => {
-    expect(buildFontStack('Outfit', 'system-ui, sans-serif')).toBe(
+    expect(buildFontStack('Outfit', { Outfit: 'system-ui, sans-serif' })).toBe(
       'Outfit, system-ui, sans-serif',
     );
   });
 
-  it('omits the fallback when empty', () => {
-    expect(buildFontStack('Outfit', '')).toBe('Outfit');
+  it('omits the fallback when the record has no entry for the family', () => {
+    expect(buildFontStack('Outfit', {})).toBe('Outfit');
   });
 
   it('omits the fallback when undefined', () => {
     expect(buildFontStack('Outfit', undefined)).toBe('Outfit');
   });
 
-  it('trims whitespace around the fallback', () => {
-    expect(buildFontStack('Outfit', '  system-ui, sans-serif  ')).toBe(
-      'Outfit, system-ui, sans-serif',
-    );
+  it('omits the fallback when the record entry is an empty string', () => {
+    expect(buildFontStack('Outfit', { Outfit: '' })).toBe('Outfit');
   });
 });
 
