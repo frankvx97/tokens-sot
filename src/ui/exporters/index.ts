@@ -9,6 +9,7 @@ import { renderJavaScript } from './javascript';
 import { renderJSON } from './json';
 import { renderLess } from './less';
 import { renderStylus } from './stylus';
+import { renderTailwindV4 } from './tailwindv4';
 
 type FormatRenderer = (sections: TokenSection[], options: ExportOptions, modeInFileName?: boolean) => string;
 
@@ -16,6 +17,7 @@ const RENDERERS: Record<TokenFormat, FormatRenderer> = {
 	css: renderCSS,
 	sass: renderSass,
 	tailwind: renderTailwind,
+	tailwindv4: renderTailwindV4,
 	stylus: renderStylus,
 	js: renderJavaScript,
 	json: renderJSON,

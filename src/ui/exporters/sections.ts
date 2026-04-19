@@ -43,6 +43,7 @@ const FORMAT_EXTENSIONS: Record<TokenFormat, string> = {
   css: 'css',
   sass: 'scss',
   tailwind: 'js',
+  tailwindv4: 'css',
   stylus: 'styl',
   js: 'js',
   json: 'json',
@@ -119,14 +120,17 @@ export function buildTokenSections(
   return sections;
 }
 
-function buildFileName(base: string, format: TokenFormat): string {
+function buildFileName(base: string, format: TokenFormat, options?: ExportOptions): string {
+  if (format === 'json' && options?.useDTCG) {
+    return `${slugify(base)}.tokens.json`;
+  }
   const extension = FORMAT_EXTENSIONS[format];
   return `${slugify(base)}.${extension}`;
 }
 
-function buildCollectionFileName(collection: string, modeName: string | null, format: TokenFormat) {
+function buildCollectionFileName(collection: string, modeName: string | null, format: TokenFormat, options?: ExportOptions) {
   const base = modeName ? `${collection} ${modeName}` : collection;
-  return buildFileName(base, format);
+  return buildFileName(base, format, options);
 }
 
 export function buildExportChunks(
@@ -139,7 +143,7 @@ export function buildExportChunks(
   if (options.exportFileStrategy === 'single') {
     return [
       {
-        fileName: buildFileName('tokens', format),
+        fileName: buildFileName('tokens', format, options),
         sections,
         modeInFileName: false
       }
@@ -159,17 +163,16 @@ export function buildExportChunks(
   grouped.forEach((collectionSections, collectionName) => {
     if (options.separateModes) {
       collectionSections.forEach((section) => {
-        // Only add mode suffix to filename when the collection has multiple modes
         const effectiveModeName = collectionSections.length > 1 ? section.modeName : null;
         chunks.push({
-          fileName: buildCollectionFileName(collectionName, effectiveModeName, format),
+          fileName: buildCollectionFileName(collectionName, effectiveModeName, format, options),
           sections: [section],
           modeInFileName: effectiveModeName !== null
         });
       });
     } else {
       chunks.push({
-        fileName: buildCollectionFileName(collectionName, null, format),
+        fileName: buildCollectionFileName(collectionName, null, format, options),
         sections: collectionSections,
         modeInFileName: false
       });

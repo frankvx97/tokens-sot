@@ -2,7 +2,7 @@ import type { ExportOptions } from '@/shared/types';
 import type { TokenSection, TokenSectionEntry } from './types';
 import { toCasing } from '../utils/casing';
 import { formatColor, formatCompositeColor } from '../utils/color';
-import { pxToRem } from '../utils/units';
+import { pxToRem, roundTo, quoteFontFamily } from '../utils/units';
 
 export function renderTailwind(sections: TokenSection[], options: ExportOptions, _modeInFileName?: boolean): string {
   if (!sections.length) {
@@ -32,6 +32,9 @@ export function renderTailwind(sections: TokenSection[], options: ExportOptions,
   renderCategory(lines, 'fontWeight', categorized.fontWeight, options.includeTopLevelName, (payload) =>
     formatFontWeightPayload(payload.entry, options.includeTopLevelName)
   );
+  renderCategory(lines, 'letterSpacing', categorized.letterSpacing, options.includeTopLevelName, (payload) =>
+    formatLetterSpacingPayload(payload.entry, useRem, options.includeTopLevelName)
+  );
   renderCategory(lines, 'boxShadow', categorized.boxShadow, options.includeTopLevelName, (payload) =>
     formatShadowPayload(payload.entry, options.includeTopLevelName)
   );
@@ -49,6 +52,7 @@ interface CategorizedEntries {
   fontFamily: SectionEntryWithLabel[];
   fontSize: SectionEntryWithLabel[];
   fontWeight: SectionEntryWithLabel[];
+  letterSpacing: SectionEntryWithLabel[];
   boxShadow: SectionEntryWithLabel[];
 }
 
@@ -64,6 +68,7 @@ function categorizeEntries(sections: TokenSection[]): CategorizedEntries {
     fontFamily: [],
     fontSize: [],
     fontWeight: [],
+    letterSpacing: [],
     boxShadow: []
   };
 
@@ -84,6 +89,7 @@ function categorizeEntries(sections: TokenSection[]): CategorizedEntries {
           bucket.fontFamily.push(payload);
           bucket.fontSize.push(payload);
           bucket.fontWeight.push(payload);
+          bucket.letterSpacing.push(payload);
           break;
         case 'shadow':
           bucket.boxShadow.push(payload);
@@ -172,8 +178,20 @@ function formatFontFamilyPayload(entry: TokenSectionEntry, includeTopLevelName: 
     return `'@alias ${aliasKey}'`;
   }
   if (entry.mode.value?.type !== 'typography') return null;
-  const fontFamily = entry.mode.value.value.fontFamily;
+  const fontFamily = quoteFontFamily(entry.mode.value.value.fontFamily);
   return `['${fontFamily}']`;
+}
+
+function formatLetterSpacingPayload(entry: TokenSectionEntry, useRem: boolean, includeTopLevelName: boolean): string | null {
+  if (entry.aliasTarget) {
+    const aliasKey = generateTailwindKey(entry.aliasTarget, includeTopLevelName);
+    return `'@alias ${aliasKey}'`;
+  }
+  if (entry.mode.value?.type !== 'typography') return null;
+  const ls = entry.mode.value.value.letterSpacing;
+  if (ls === 0) return `'0px'`;
+  const value = useRem ? `${roundTo(pxToRem(ls), 4)}rem` : `${roundTo(ls, 3)}px`;
+  return `'${value}'`;
 }
 
 function formatFontSizePayload(entry: TokenSectionEntry, useRem: boolean, includeTopLevelName: boolean): string | null {

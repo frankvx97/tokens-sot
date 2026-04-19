@@ -1,46 +1,244 @@
-import type { ExportOptions } from '@/shared/types';
+import type { ExportOptions, NormalizedToken } from '@/shared/types';
 import type { TokenSection, TokenSectionEntry } from './types';
 import { toCasing } from '../utils/casing';
 import { formatColor, formatGradient, formatCompositeColor } from '../utils/color';
-import { formatWithUnit, formatLineHeight } from '../utils/units';
+import { formatWithUnit, formatLineHeight, formatLetterSpacing, buildFontStack, mapTextCase, mapTextDecoration, isLikelyFontWeight, mapFontWeightString } from '../utils/units';
 import { shouldShowModeNames, buildSectionLabel } from './sections';
+
+interface TypographyClassEntry {
+  entry: TokenSectionEntry;
+  modeName: string | null;
+}
+
+export function isHeadingToken(token: NormalizedToken): boolean {
+  return token.groupPath?.some((g) => /^headings?$/i.test(g)) ?? false;
+}
+
+export function isBodyToken(token: NormalizedToken): boolean {
+  return token.groupPath?.some((g) => /^(body|paragraphs?)$/i.test(g)) ?? false;
+}
 
 export function renderCSS(sections: TokenSection[], options: ExportOptions, modeInFileName?: boolean): string {
   if (!sections.length) {
     return '/* No tokens selected */\n';
   }
 
-  const lines: string[] = [':root {'];
   const showModes = shouldShowModeNames(sections);
-  // Include mode in token name only when modes share the same file
   const includeModeInName = showModes && !modeInFileName;
+  const classesMode = (options.cssTypographyFormat ?? 'classes') === 'classes';
+  const typographyClassEntries: TypographyClassEntry[] = [];
+  const rootLines: string[] = [];
 
-  sections.forEach((section, sectionIndex) => {
+  sections.forEach((section) => {
     const label = buildSectionLabel(section, showModes);
-    lines.push('');
-    lines.push(`  /* ${label} */`);
+    const modeName = includeModeInName ? section.modeName : null;
+    const sectionLines: string[] = [];
+
     section.entries.forEach((entry) => {
-      const declaration = buildCSSDeclaration(entry, options, includeModeInName ? section.modeName : null);
-      if (declaration) {
-        lines.push(`  ${declaration}`);
+      const isTypography = entry.mode.value?.type === 'typography';
+      if (classesMode && isTypography) {
+        typographyClassEntries.push({ entry, modeName });
+        return;
       }
+      const declarations = buildCSSDeclarations(entry, options, modeName);
+      declarations.forEach((decl) => sectionLines.push(`  ${decl}`));
     });
-    if (sectionIndex === sections.length - 1) {
-      lines.push('');
+
+    if (sectionLines.length > 0) {
+      rootLines.push('');
+      rootLines.push(`  /* ${label} */`);
+      rootLines.push(...sectionLines);
     }
   });
 
-  lines.push('}\n');
+  const output: string[] = [];
 
-  return lines.join('\n');
+  if (rootLines.length > 0) {
+    output.push(':root {');
+    output.push(...rootLines);
+    output.push('');
+    output.push('}');
+  }
+
+  if (typographyClassEntries.length > 0) {
+    if (output.length > 0) output.push('');
+    output.push('/* Typography */');
+    typographyClassEntries.forEach(({ entry, modeName }) => {
+      const varName = generateCSSVarName(entry.token, options.casing, modeName, options.includeTopLevelName);
+      const className = varName.replace(/^--/, '.text-');
+      const body = buildCSSTypographyClassBody(entry, options, isHeadingToken(entry.token));
+      output.push('');
+      output.push(`${className} {`);
+      body.forEach((line) => output.push(`  ${line}`));
+      output.push('}');
+    });
+  }
+
+  const elementBlocks = buildElementDefaultBlocks(sections, options);
+  if (elementBlocks.length > 0) {
+    if (output.length > 0) output.push('');
+    output.push('/* Base element defaults */');
+    elementBlocks.forEach((block) => {
+      output.push('');
+      output.push(...block);
+    });
+  }
+
+  if (output.length === 0) {
+    return '/* No tokens selected */\n';
+  }
+
+  output.push('');
+  return output.join('\n');
 }
 
-function buildCSSDeclaration(entry: TokenSectionEntry, options: ExportOptions, modeName: string | null): string | null {
+function buildElementDefaultBlocks(sections: TokenSection[], options: ExportOptions): string[][] {
+  const blocks: string[][] = [];
+
+  const typographyEntries: TokenSectionEntry[] = [];
+  sections.forEach((section) => {
+    section.entries.forEach((entry) => {
+      if (entry.mode.value?.type === 'typography') {
+        typographyEntries.push(entry);
+      }
+    });
+  });
+
+  if (options.cssIncludeBodyBaseline && options.cssBodyBaselineTokenId) {
+    const bodyEntry = typographyEntries.find((e) => e.token.id === options.cssBodyBaselineTokenId);
+    if (bodyEntry && bodyEntry.mode.value?.type === 'typography') {
+      const typo = bodyEntry.mode.value.value;
+      const cas = options.casing;
+      const block: string[] = ['body {'];
+      block.push(`  font-family: ${formatCSSAliasRef(typo.fontFamilyAlias, cas) ?? buildFontStack(typo.fontFamily, options.fontFallbacks)};`);
+      block.push(`  font-size: ${formatCSSAliasRef(typo.fontSizeAlias, cas) ?? formatWithUnit(typo.fontSize, options.unit)};`);
+      block.push(`  line-height: ${formatCSSAliasRef(typo.lineHeightAlias, cas) ?? formatLineHeight(typo.lineHeight, options.unit)};`);
+      block.push(`  font-weight: ${formatCSSAliasRef(typo.fontWeightAlias, cas) ?? String(typo.fontWeight)};`);
+      block.push('}');
+      blocks.push(block);
+    }
+  }
+
+  if (options.cssIncludeHeadingDefaults) {
+    const headingEntries = typographyEntries.filter((e) => isHeadingToken(e.token));
+    const seen = new Set<string>();
+    const uniqueHeadings = headingEntries.filter((e) => {
+      if (seen.has(e.token.id)) return false;
+      seen.add(e.token.id);
+      return true;
+    });
+    uniqueHeadings.sort((a, b) => {
+      const aSize = a.mode.value?.type === 'typography' ? (a.mode.value.value.fontSize ?? 0) : 0;
+      const bSize = b.mode.value?.type === 'typography' ? (b.mode.value.value.fontSize ?? 0) : 0;
+      return bSize - aSize;
+    });
+    const top = uniqueHeadings.slice(0, 6);
+    top.forEach((entry, index) => {
+      const selector = `h${index + 1}`;
+      const body = buildCSSTypographyClassBody(entry, options, true);
+      if (body.length === 0) return;
+      const block: string[] = [`${selector} {`];
+      body.forEach((line) => block.push(`  ${line}`));
+      block.push('}');
+      blocks.push(block);
+    });
+  }
+
+  return blocks;
+}
+
+function buildCSSDeclarations(entry: TokenSectionEntry, options: ExportOptions, modeName: string | null): string[] {
   const varName = generateCSSVarName(entry.token, options.casing, modeName, options.includeTopLevelName);
+
+  // Typography tokens emit multiple CSS custom properties per axis
+  if (entry.mode.value?.type === 'typography' && !entry.aliasTarget) {
+    return buildCSSTypographyDeclarations(varName, entry.mode.value.value, options);
+  }
+
+  // Alias for typography tokens: reference each sub-property
+  if (entry.mode.value?.type === 'typography' && entry.aliasTarget) {
+    const aliasVarName = generateCSSVarName(entry.aliasTarget, options.casing, modeName, options.includeTopLevelName);
+    const props = ['font-family', 'font-size', 'line-height', 'font-weight', 'letter-spacing'];
+    const typo = entry.mode.value.value;
+    if (mapTextCase(typo.textCase)) props.push('text-transform');
+    if (mapTextDecoration(typo.textDecoration)) props.push('text-decoration');
+    return props.map((prop) => `${varName}-${prop}: var(${aliasVarName}-${prop});`);
+  }
+
+  // Non-typography: single declaration
   const aliasName = entry.aliasTarget ? `var(${generateCSSVarName(entry.aliasTarget, options.casing, modeName, options.includeTopLevelName)})` : null;
-  const value = aliasName ?? formatTokenValue(entry.mode.value, options);
-  if (!value) return null;
-  return `${varName}: ${value};`;
+  let value = aliasName ?? formatTokenValue(entry.mode.value, options);
+  if (!value) return [];
+
+  // Convert font weight strings to numeric CSS values
+  if (!aliasName && entry.mode.value?.type === 'string' && isLikelyFontWeight(entry.token.name, entry.token.groupPath)) {
+    const numericWeight = mapFontWeightString(entry.mode.value.value);
+    if (numericWeight !== null) value = String(numericWeight);
+  }
+
+  return [`${varName}: ${value};`];
+}
+
+function formatCSSAliasRef(aliasName: string | undefined, casing: ExportOptions['casing']): string | null {
+  if (!aliasName) return null;
+  return `var(--${toCasing(aliasName, casing)})`;
+}
+
+function buildCSSTypographyDeclarations(
+  varName: string,
+  typo: NonNullable<import('@/shared/types').TypographyTokenValue['value']>,
+  options: ExportOptions
+): string[] {
+  const decls: string[] = [];
+  const cas = options.casing;
+
+  const fontFamilyVal = formatCSSAliasRef(typo.fontFamilyAlias, cas) ?? buildFontStack(typo.fontFamily, options.fontFallbacks);
+  const fontSizeVal = formatCSSAliasRef(typo.fontSizeAlias, cas) ?? formatWithUnit(typo.fontSize, options.unit);
+  const lineHeightVal = formatCSSAliasRef(typo.lineHeightAlias, cas) ?? formatLineHeight(typo.lineHeight, options.unit);
+  const fontWeightVal = formatCSSAliasRef(typo.fontWeightAlias, cas) ?? String(typo.fontWeight);
+  const letterSpacingVal = formatCSSAliasRef(typo.letterSpacingAlias, cas) ?? formatLetterSpacing(typo.letterSpacing, options.unit);
+
+  decls.push(`${varName}-font-family: ${fontFamilyVal};`);
+  decls.push(`${varName}-font-size: ${fontSizeVal};`);
+  decls.push(`${varName}-line-height: ${lineHeightVal};`);
+  decls.push(`${varName}-font-weight: ${fontWeightVal};`);
+  decls.push(`${varName}-letter-spacing: ${letterSpacingVal};`);
+
+  const textTransform = mapTextCase(typo.textCase);
+  if (textTransform) {
+    decls.push(`${varName}-text-transform: ${textTransform};`);
+  }
+
+  const textDecoration = mapTextDecoration(typo.textDecoration);
+  if (textDecoration) {
+    decls.push(`${varName}-text-decoration: ${textDecoration};`);
+  }
+
+  return decls;
+}
+
+function buildCSSTypographyClassBody(entry: TokenSectionEntry, options: ExportOptions, isHeading = false): string[] {
+  if (entry.mode.value?.type !== 'typography') return [];
+  const typo = entry.mode.value.value;
+  const cas = options.casing;
+  const lines: string[] = [];
+
+  lines.push(`font-family: ${formatCSSAliasRef(typo.fontFamilyAlias, cas) ?? buildFontStack(typo.fontFamily, options.fontFallbacks)};`);
+  lines.push(`font-size: ${formatCSSAliasRef(typo.fontSizeAlias, cas) ?? formatWithUnit(typo.fontSize, options.unit)};`);
+  lines.push(`line-height: ${formatCSSAliasRef(typo.lineHeightAlias, cas) ?? formatLineHeight(typo.lineHeight, options.unit)};`);
+  lines.push(`font-weight: ${formatCSSAliasRef(typo.fontWeightAlias, cas) ?? String(typo.fontWeight)};`);
+  lines.push(`letter-spacing: ${formatCSSAliasRef(typo.letterSpacingAlias, cas) ?? formatLetterSpacing(typo.letterSpacing, options.unit)};`);
+
+  const tt = mapTextCase(typo.textCase);
+  if (tt) lines.push(`text-transform: ${tt};`);
+  const td = mapTextDecoration(typo.textDecoration);
+  if (td) lines.push(`text-decoration: ${td};`);
+
+  if (isHeading && options.cssHeadingTextWrapBalance) {
+    lines.push('text-wrap: balance;');
+  }
+
+  return lines;
 }
 
 function generateCSSVarName(
@@ -87,10 +285,6 @@ function formatTokenValue(
       return value.value;
     case 'boolean':
       return value.value ? 'true' : 'false';
-    case 'typography': {
-      const typo = value.value;
-      return `${typo.fontSize}px/${formatLineHeight(typo.lineHeight, options.unit)} ${typo.fontFamily}`;
-    }
     case 'shadow': {
       return value.value
         .map((shadow) => {
@@ -101,7 +295,7 @@ function formatTokenValue(
         .join(', ');
     }
     case 'gradient': {
-      const gradientType = value.gradientType === 'LINEAR_GRADIENT' ? 'linear-gradient' : 
+      const gradientType = value.gradientType === 'LINEAR_GRADIENT' ? 'linear-gradient' :
                            value.gradientType === 'RADIAL_GRADIENT' ? 'radial-gradient' :
                            value.gradientType === 'ANGULAR_GRADIENT' ? 'conic-gradient' : 'radial-gradient';
       return formatGradient(gradientType as any, value.value, value.gradientAngle, options.color);

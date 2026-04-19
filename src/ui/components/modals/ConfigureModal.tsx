@@ -3,9 +3,11 @@
  */
 
 import * as React from 'react';
-import type { ExportOptions, TokenCasing, ColorFormat, DimensionUnit } from '@/shared/types';
+import type { ExportOptions, TokenCasing, ColorFormat, DimensionUnit, TypographyFormat } from '@/shared/types';
+import type { NormalizedToken } from '@/shared/types';
 import { cn } from '@/ui/utils/cn';
 import { useAppDispatch, useAppState } from '../../state/app-state';
+import { getSelectedTokens } from '../../state/selectors';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
 import {
@@ -22,6 +24,10 @@ import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
 interface ConfigureModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** The currently selected export format from the format dropdown */
+  activeFormat?: string;
+  /** Callback to sync format changes back to the main view */
+  onFormatChange?: (format: string) => void;
 }
 
 interface SettingsSectionProps {
@@ -60,7 +66,9 @@ const OptionGroup: React.FC<OptionGroupProps> = ({ label, options, value, onChan
       }}
       className={cn(
         'grid gap-2 rounded-lg bg-slate-900/60 p-1',
-        options.length === 2 ? 'grid-cols-2' : 'grid-cols-3'
+        options.length === 2 ? 'grid-cols-2' :
+        options.length <= 3 ? 'grid-cols-3' :
+        'grid-cols-4'
       )}
     >
       {options.map((option) => (
@@ -144,7 +152,7 @@ const CheckboxRow: React.FC<CheckboxRowProps> = ({ label, description, checked, 
   </label>
 );
 
-export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose }) => {
+export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose, activeFormat, onFormatChange }) => {
   const dispatch = useAppDispatch();
   const state = useAppState();
   const [localSettings, setLocalSettings] = React.useState<ExportOptions>(state.settings.exportOptions);
@@ -169,6 +177,48 @@ export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose 
     setLocalSettings((prev) => ({ ...prev, [key]: value }));
   };
 
+  // Extract unique font families from selected typography tokens
+  const uniqueFontFamilies = React.useMemo(() => {
+    const tokens = getSelectedTokens(state);
+    const families = new Set<string>();
+    tokens.forEach((token: NormalizedToken) => {
+      if (token.kind === 'typography') {
+        token.modes.forEach((mode) => {
+          if (mode.value?.type === 'typography') {
+            families.add(mode.value.value.fontFamily);
+          }
+        });
+      }
+    });
+    return Array.from(families).sort();
+  }, [state]);
+
+  // Body/paragraph typography tokens available for the body-baseline picker.
+  // Matches against Figma group path (e.g. "body", "paragraph", "paragraphs").
+  const bodyTokenOptions = React.useMemo(() => {
+    const tokens = getSelectedTokens(state);
+    return tokens
+      .filter(
+        (token: NormalizedToken) =>
+          token.kind === 'typography' &&
+          (token.groupPath ?? []).some((g) => /^(body|paragraphs?)$/i.test(g))
+      )
+      .map((token: NormalizedToken) => ({
+        id: token.id,
+        label: [...(token.groupPath ?? []), token.name].join(' / ')
+      }));
+  }, [state]);
+
+  const updateFontFallback = (family: string, fallback: string) => {
+    setLocalSettings((prev) => ({
+      ...prev,
+      fontFallbacks: {
+        ...(prev.fontFallbacks ?? {}),
+        [family]: fallback
+      }
+    }));
+  };
+
   const casingOptions: ToggleOption[] = [
     { label: 'camelCase', value: 'lowerCamelCase' },
     { label: 'PascalCase', value: 'PascalCase' },
@@ -186,6 +236,17 @@ export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose 
   const unitOptions: ToggleOption[] = [
     { label: 'px', value: 'px' },
     { label: 'rem', value: 'rem' }
+  ];
+
+  const formatOptions: ToggleOption[] = [
+    { label: 'CSS', value: 'css' },
+    { label: 'Sass', value: 'sass' },
+    { label: 'TW v3', value: 'tailwind' },
+    { label: 'TW v4', value: 'tailwindv4' },
+    { label: 'Less', value: 'less' },
+    { label: 'Stylus', value: 'stylus' },
+    { label: 'JS', value: 'js' },
+    { label: 'JSON', value: 'json' },
   ];
 
   const fileStrategyOptions: ToggleOption[] = [
@@ -212,6 +273,15 @@ export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose 
 
         <div className="max-h-[70vh] overflow-y-auto px-6 py-5">
           <div className="space-y-6">
+            <SettingsSection title="Output Format">
+              <OptionGroup
+                label="Language"
+                options={formatOptions}
+                value={activeFormat ?? 'css'}
+                onChange={(value) => onFormatChange?.(value)}
+              />
+            </SettingsSection>
+
             <SettingsSection title="Naming Convention">
               <RadioCardsGroup
                 label="Token Casing"
@@ -239,6 +309,92 @@ export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose 
                 onChange={(value) => updateSetting('unit', value as DimensionUnit)}
               />
             </SettingsSection>
+
+            {/* Typography Format toggle — only for Sass/Less */}
+            {(activeFormat === 'sass' || activeFormat === 'less') && (
+              <SettingsSection title="Typography">
+                <OptionGroup
+                  label="Typography Format"
+                  options={[
+                    { label: 'Default', value: 'default' },
+                    { label: 'Mixins', value: 'mixins' },
+                  ]}
+                  value={localSettings.typographyFormat ?? 'default'}
+                  onChange={(value) => updateSetting('typographyFormat', value as TypographyFormat)}
+                />
+              </SettingsSection>
+            )}
+
+            {/* CSS Typography format toggle */}
+            {activeFormat === 'css' && (
+              <SettingsSection title="Typography">
+                <OptionGroup
+                  label="Typography Format"
+                  options={[
+                    { label: 'Classes', value: 'classes' },
+                    { label: 'Custom Properties', value: 'properties' },
+                  ]}
+                  value={localSettings.cssTypographyFormat ?? 'classes'}
+                  onChange={(value) => updateSetting('cssTypographyFormat', value as 'classes' | 'properties')}
+                />
+              </SettingsSection>
+            )}
+
+            {/* CSS HTML element defaults */}
+            {activeFormat === 'css' && (
+              <SettingsSection title="HTML Element Defaults">
+                <CheckboxRow
+                  label="Include body baseline"
+                  description="Emits a body { ... } rule using a selected body/paragraph token."
+                  checked={localSettings.cssIncludeBodyBaseline ?? false}
+                  onChange={(checked) => updateSetting('cssIncludeBodyBaseline', checked)}
+                />
+                {localSettings.cssIncludeBodyBaseline && (
+                  <div className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+                    <span className="min-w-[100px] shrink-0 text-sm font-medium text-slate-200">Body token</span>
+                    <select
+                      value={localSettings.cssBodyBaselineTokenId ?? ''}
+                      onChange={(e) => updateSetting('cssBodyBaselineTokenId', e.target.value || undefined)}
+                      className="flex-1 rounded-md border border-slate-700 bg-slate-900/60 px-2.5 py-1.5 text-xs text-slate-200 focus:border-accent focus:outline-none"
+                    >
+                      <option value="">Select a token…</option>
+                      {bodyTokenOptions.map((opt) => (
+                        <option key={opt.id} value={opt.id}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {localSettings.cssIncludeBodyBaseline && bodyTokenOptions.length === 0 && (
+                  <div className="px-3 text-xs text-slate-500">
+                    No body/paragraph typography tokens in the current selection. Organize typography styles under a group named “body” or “paragraph” in Figma.
+                  </div>
+                )}
+                <CheckboxRow
+                  label="Include h1–h6 element defaults"
+                  description="Maps heading tokens (group “headings”) to h1…h6 by font-size rank."
+                  checked={localSettings.cssIncludeHeadingDefaults ?? false}
+                  onChange={(checked) => updateSetting('cssIncludeHeadingDefaults', checked)}
+                />
+                <CheckboxRow
+                  label="Add text-wrap: balance to headings"
+                  description="Applies text-wrap: balance to heading utility classes and h1–h6 rules."
+                  checked={localSettings.cssHeadingTextWrapBalance ?? false}
+                  onChange={(checked) => updateSetting('cssHeadingTextWrapBalance', checked)}
+                />
+              </SettingsSection>
+            )}
+
+            {/* JSON-specific options */}
+            {activeFormat === 'json' && (
+              <SettingsSection title="JSON Options">
+                <CheckboxRow
+                  label="Use DTCG format"
+                  description="Export tokens using the Design Token Community Group standard (W3C)"
+                  checked={localSettings.useDTCG ?? false}
+                  onChange={(checked) => updateSetting('useDTCG', checked)}
+                />
+              </SettingsSection>
+            )}
 
             <SettingsSection title="Export Strategy">
               <OptionGroup
@@ -269,6 +425,32 @@ export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose 
                 onChange={(checked) => updateSetting('ignoreAliases', checked)}
               />
             </SettingsSection>
+
+            {/* Font Fallbacks */}
+            {uniqueFontFamilies.length > 0 && (
+              <SettingsSection title="Font Fallbacks">
+                <div className="space-y-2">
+                  {uniqueFontFamilies.map((family) => {
+                    const isMonoLike = /mono|code|consolas/i.test(family);
+                    const placeholder = isMonoLike
+                      ? 'ui-monospace, monospace'
+                      : 'system-ui, sans-serif';
+                    return (
+                      <div key={family} className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+                        <span className="min-w-[100px] shrink-0 text-sm font-medium text-slate-200">{family}</span>
+                        <input
+                          type="text"
+                          value={localSettings.fontFallbacks?.[family] ?? ''}
+                          onChange={(e) => updateFontFallback(family, e.target.value)}
+                          placeholder={placeholder}
+                          className="flex-1 rounded-md border border-slate-700 bg-slate-900/60 px-2.5 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:border-accent focus:outline-none"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </SettingsSection>
+            )}
           </div>
         </div>
 

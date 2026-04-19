@@ -87,6 +87,12 @@ export interface TypographyTokenValue {
     paragraphSpacing: number;
     textCase?: string;
     textDecoration?: string;
+    // Alias references (variable binding names from Figma bound variables)
+    fontFamilyAlias?: string;
+    fontSizeAlias?: string;
+    lineHeightAlias?: string;
+    letterSpacingAlias?: string;
+    fontWeightAlias?: string;
   };
 }
 
@@ -147,7 +153,7 @@ export interface RGBA {
   a: number;
 }
 
-export type TokenFormat = 'css' | 'sass' | 'tailwind' | 'stylus' | 'js' | 'json' | 'less';
+export type TokenFormat = 'css' | 'sass' | 'tailwind' | 'tailwindv4' | 'stylus' | 'js' | 'json' | 'less';
 
 export type TokenCasing =
   | 'lowerCamelCase'
@@ -159,6 +165,8 @@ export type TokenCasing =
 export type ColorFormat = 'hex' | 'rgb' | 'hsl';
 
 export type ExportFileStrategy = 'single' | 'multiple';
+
+export type TypographyFormat = 'default' | 'mixins';
 
 export interface ExportOptions {
   format: TokenFormat;
@@ -173,6 +181,22 @@ export interface ExportOptions {
   addFallback: boolean;
   separateModes: boolean;
   includeIndexFile: boolean;
+  /** Controls whether Sass/Less emit map/shorthand (default) or mixin format */
+  typographyFormat?: TypographyFormat;
+  /** When true and format is JSON, emit DTCG-compliant structure */
+  useDTCG?: boolean;
+  /** CSS typography output shape: grouped .text-{name} classes (default) or flat per-axis custom properties */
+  cssTypographyFormat?: 'classes' | 'properties';
+  /** CSS only: emit a body { ... } baseline rule from the selected body token */
+  cssIncludeBodyBaseline?: boolean;
+  /** CSS only: id of the typography token used for the body baseline */
+  cssBodyBaselineTokenId?: string;
+  /** CSS only: emit h1..h6 rules mapped from heading tokens by font-size rank */
+  cssIncludeHeadingDefaults?: boolean;
+  /** CSS only: add text-wrap: balance to heading utility classes */
+  cssHeadingTextWrapBalance?: boolean;
+  /** Per-family font fallback stacks, e.g. { "Outfit": "system-ui, sans-serif" } */
+  fontFallbacks?: Record<string, string>;
 }
 
 export interface PluginSettings {

@@ -2,9 +2,14 @@ import type { ExportOptions } from '@/shared/types';
 import type { TokenSection, TokenSectionEntry } from './types';
 import { toCasing } from '../utils/casing';
 import { rgbaToHex } from '../utils/color';
+import { roundTo, isLikelyFontWeight, mapFontWeightString } from '../utils/units';
 import { shouldShowModeNames, buildSectionLabel } from './sections';
 
 export function renderJSON(sections: TokenSection[], options: ExportOptions, modeInFileName?: boolean): string {
+  if (options.useDTCG) {
+    return renderDTCGJSON(sections, options);
+  }
+
   if (!sections.length) {
     return '{\n  "tokens": {}\n}\n';
   }
@@ -66,6 +71,12 @@ function buildJSONValue(entry: TokenSectionEntry, options: ExportOptions, _modeN
     return JSON.stringify(`@alias ${aliasKey}`);
   }
 
+  // Convert font weight strings to numeric CSS values
+  if (entry.mode.value?.type === 'string' && isLikelyFontWeight(entry.token.name, entry.token.groupPath)) {
+    const numericWeight = mapFontWeightString(entry.mode.value.value);
+    if (numericWeight !== null) return JSON.stringify(numericWeight);
+  }
+
   const rawValue = formatTokenValue(entry.mode.value);
   if (rawValue === null) return null;
   return JSON.stringify(rawValue);
@@ -106,8 +117,14 @@ function formatTokenValue(value: TokenSectionEntry['mode']['value']): unknown {
       return value.value;
     case 'boolean':
       return value.value;
-    case 'typography':
-      return value.value;
+    case 'typography': {
+      const typo = { ...value.value };
+      // Round letter-spacing to clean up float garbage
+      if (typeof typo.letterSpacing === 'number') {
+        typo.letterSpacing = roundTo(typo.letterSpacing, 3);
+      }
+      return typo;
+    }
     case 'shadow':
       return value.value;
     case 'gradient':
@@ -121,6 +138,153 @@ function formatTokenValue(value: TokenSectionEntry['mode']['value']): unknown {
         type: 'compositeColor',
         layers: value.value
       };
+    default:
+      return null;
+  }
+}
+
+// --- DTCG Format (Design Tokens Community Group) ---
+
+const DTCG_TYPE_MAP: Record<string, string> = {
+  color: 'color',
+  dimension: 'dimension',
+  number: 'number',
+  typography: 'typography',
+  shadow: 'shadow',
+  gradient: 'gradient',
+  string: 'string',
+  boolean: 'boolean',
+};
+
+function renderDTCGJSON(sections: TokenSection[], options: ExportOptions): string {
+  if (!sections.length) {
+    return '{}\n';
+  }
+
+  const root: Record<string, unknown> = {};
+
+  sections.forEach((section) => {
+    section.entries.forEach((entry) => {
+      const token = entry.token;
+
+      // Build the nested path: groupPath segments + token name
+      const pathParts = [...(token.groupPath ?? [])];
+      const tokenName = token.name;
+
+      // Navigate/create nested groups
+      let current = root;
+      for (const segment of pathParts) {
+        // Sanitize segment: DTCG names must not start with $ or contain {, }, .
+        const safeName = sanitizeDTCGName(segment);
+        if (!current[safeName] || typeof current[safeName] !== 'object') {
+          current[safeName] = {};
+        }
+        current = current[safeName] as Record<string, unknown>;
+      }
+
+      const safeTokenName = sanitizeDTCGName(tokenName);
+
+      // Build DTCG token object
+      const dtcgToken: Record<string, unknown> = {};
+
+      // $type
+      const valueType = entry.mode.value?.type;
+      if (valueType && DTCG_TYPE_MAP[valueType]) {
+        dtcgToken.$type = DTCG_TYPE_MAP[valueType];
+      }
+
+      // $value
+      if (entry.aliasTarget) {
+        // DTCG alias syntax: "{group.token}"
+        const aliasPath = [
+          ...(entry.aliasTarget.groupPath ?? []),
+          entry.aliasTarget.name
+        ].map(sanitizeDTCGName).join('.');
+        dtcgToken.$value = `{${aliasPath}}`;
+      } else {
+        dtcgToken.$value = formatDTCGValue(entry.mode.value, options);
+      }
+
+      // $description
+      if (token.description) {
+        dtcgToken.$description = token.description;
+      }
+
+      current[safeTokenName] = dtcgToken;
+    });
+  });
+
+  return JSON.stringify(root, null, 2) + '\n';
+}
+
+function sanitizeDTCGName(name: string): string {
+  return name.replace(/[{}.]/g, '-').replace(/^\$/, '_');
+}
+
+function formatDTCGValue(value: TokenSectionEntry['mode']['value'], options: ExportOptions): unknown {
+  if (!value) return null;
+
+  switch (value.type) {
+    case 'color': {
+      const { r, g, b, a } = value.value;
+      const result: Record<string, unknown> = {
+        colorSpace: 'srgb',
+        components: [roundTo(r, 4), roundTo(g, 4), roundTo(b, 4)]
+      };
+      if (a < 1) result.alpha = roundTo(a, 4);
+      return result;
+    }
+    case 'dimension': {
+      const unit = options.unit === 'rem' ? 'rem' : (value.unit || 'px');
+      const numericValue = options.unit === 'rem'
+        ? roundTo(value.value / 16, 4)
+        : roundTo(value.value, 3);
+      return { value: numericValue, unit };
+    }
+    case 'number':
+      return roundTo(value.value, 3);
+    case 'string':
+      return value.value;
+    case 'boolean':
+      return value.value;
+    case 'typography': {
+      const typo = value.value;
+      const result: Record<string, unknown> = {
+        fontFamily: [typo.fontFamily],
+        fontSize: { value: typo.fontSize, unit: 'px' },
+        fontWeight: typo.fontWeight,
+        letterSpacing: { value: roundTo(typo.letterSpacing, 3), unit: 'px' }
+      };
+      if (typo.lineHeight === 'AUTO') {
+        result.lineHeight = 1.5;
+      } else {
+        result.lineHeight = { value: typo.lineHeight, unit: 'px' };
+      }
+      return result;
+    }
+    case 'shadow': {
+      // DTCG shadow can be a single object or array
+      const shadows = value.value.map((s) => {
+        const { r, g, b, a } = s.color;
+        return {
+          color: { colorSpace: 'srgb' as const, components: [roundTo(r, 4), roundTo(g, 4), roundTo(b, 4)], ...(a < 1 ? { alpha: roundTo(a, 4) } : {}) },
+          offsetX: { value: s.x, unit: 'px' as const },
+          offsetY: { value: s.y, unit: 'px' as const },
+          blur: { value: s.blur, unit: 'px' as const },
+          spread: { value: s.spread, unit: 'px' as const }
+        };
+      });
+      return shadows.length === 1 ? shadows[0] : shadows;
+    }
+    case 'gradient': {
+      return value.value.map((stop) => {
+        const { r, g, b, a } = stop.color;
+        return {
+          color: { colorSpace: 'srgb', components: [roundTo(r, 4), roundTo(g, 4), roundTo(b, 4)], ...(a < 1 ? { alpha: roundTo(a, 4) } : {}) },
+          position: stop.position
+        };
+      });
+    }
     default:
       return null;
   }

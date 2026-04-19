@@ -2,7 +2,7 @@ import type { ExportOptions } from '@/shared/types';
 import type { TokenSection, TokenSectionEntry } from './types';
 import { toCasing } from '../utils/casing';
 import { formatColor, formatGradient, formatCompositeColor } from '../utils/color';
-import { formatWithUnit, formatLineHeight, formatLetterSpacing } from '../utils/units';
+import { formatWithUnit, formatLineHeight, formatLetterSpacing, buildFontStack, mapTextCase, mapTextDecoration, isLikelyFontWeight, mapFontWeightString } from '../utils/units';
 import { shouldShowModeNames, buildSectionLabel } from './sections';
 
 export function renderStylus(sections: TokenSection[], options: ExportOptions, modeInFileName?: boolean): string {
@@ -36,8 +36,15 @@ export function renderStylus(sections: TokenSection[], options: ExportOptions, m
 function buildStylusDeclaration(entry: TokenSectionEntry, options: ExportOptions, modeName: string | null): string | null {
   const varName = generateStylusVarName(entry.token, options.casing, modeName, options.includeTopLevelName);
   const aliasName = entry.aliasTarget ? generateStylusVarName(entry.aliasTarget, options.casing, modeName, options.includeTopLevelName) : null;
-  const value = aliasName ?? formatTokenValue(entry.mode.value, options);
+  let value = aliasName ?? formatTokenValue(entry.mode.value, options);
   if (!value) return null;
+
+  // Convert font weight strings to numeric CSS values
+  if (!aliasName && entry.mode.value?.type === 'string' && isLikelyFontWeight(entry.token.name, entry.token.groupPath)) {
+    const numericWeight = mapFontWeightString(entry.mode.value.value);
+    if (numericWeight !== null) value = String(numericWeight);
+  }
+
   return `${varName} = ${value}`;
 }
 
@@ -86,7 +93,20 @@ function formatTokenValue(
       return value.value ? 'true' : 'false';
     case 'typography': {
       const typo = value.value;
-      return `{\n  font-family: ${typo.fontFamily}\n  font-size: ${typo.fontSize}px\n  font-weight: ${typo.fontWeight}\n  line-height: ${formatLineHeight(typo.lineHeight, options.unit)}\n  letter-spacing: ${formatLetterSpacing(typo.letterSpacing, options.unit)}\n}`;
+      const cas = options.casing;
+      const stylusAlias = (a: string | undefined) => a ? toCasing(a, cas) : null;
+      const lines = [
+        `  font-family: ${stylusAlias(typo.fontFamilyAlias) ?? buildFontStack(typo.fontFamily, options.fontFallbacks)}`,
+        `  font-size: ${stylusAlias(typo.fontSizeAlias) ?? formatWithUnit(typo.fontSize, options.unit)}`,
+        `  font-weight: ${stylusAlias(typo.fontWeightAlias) ?? typo.fontWeight}`,
+        `  line-height: ${stylusAlias(typo.lineHeightAlias) ?? formatLineHeight(typo.lineHeight, options.unit)}`,
+        `  letter-spacing: ${stylusAlias(typo.letterSpacingAlias) ?? formatLetterSpacing(typo.letterSpacing, options.unit)}`
+      ];
+      const textTransform = mapTextCase(typo.textCase);
+      if (textTransform) lines.push(`  text-transform: ${textTransform}`);
+      const textDecoration = mapTextDecoration(typo.textDecoration);
+      if (textDecoration) lines.push(`  text-decoration: ${textDecoration}`);
+      return `{\n${lines.join('\n')}\n}`;
     }
     case 'shadow':
       return value.value

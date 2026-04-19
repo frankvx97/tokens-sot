@@ -19,7 +19,7 @@ const AppShell: FC = () => {
   const dispatch = useAppDispatch();
   const bridge = usePluginBridge();
   const state = useAppState();
-  const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('sass');
+  const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('css');
   const [isConfigureOpen, setIsConfigureOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
@@ -49,6 +49,7 @@ const AppShell: FC = () => {
       js: 'javascript',
       json: 'json',
       tailwind: 'javascript',
+      tailwindv4: 'css',
       css: 'css'
     };
     return languageMap[format] || 'css';
@@ -468,7 +469,7 @@ const AppShell: FC = () => {
           <line x1="7.5" y1="13.5" x2="13.5" y2="7.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
         </svg>
       </div>
-      {isConfigureOpen && <ConfigureModal isOpen={isConfigureOpen} onClose={() => setIsConfigureOpen(false)} />}
+      {isConfigureOpen && <ConfigureModal isOpen={isConfigureOpen} onClose={() => setIsConfigureOpen(false)} activeFormat={selectedFormat} onFormatChange={(f) => setSelectedFormat(f as ExportFormat)} />}
     </>
   );
 };

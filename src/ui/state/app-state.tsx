@@ -42,7 +42,14 @@ const defaultExportOptions: ExportOptions = {
   useRootAlias: false,
   addFallback: false,
   separateModes: false,
-  includeIndexFile: false
+  includeIndexFile: false,
+  typographyFormat: 'default',
+  useDTCG: false,
+  cssTypographyFormat: 'classes',
+  cssIncludeBodyBaseline: false,
+  cssIncludeHeadingDefaults: false,
+  cssHeadingTextWrapBalance: false,
+  fontFallbacks: {}
 };
 
 const defaultSettings: PluginSettings = {
