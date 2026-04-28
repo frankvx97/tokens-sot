@@ -63,16 +63,23 @@ export interface NumberTokenValue {
   value: number;
 }
 
+export type ShadowEntry =
+  | {
+      type: 'drop-shadow' | 'inner-shadow';
+      x: number;
+      y: number;
+      blur: number;
+      spread: number;
+      color: RGBA;
+    }
+  | {
+      type: 'layer-blur' | 'background-blur';
+      radius: number;
+    };
+
 export interface ShadowTokenValue {
   type: 'shadow';
-  value: Array<{
-    x: number;
-    y: number;
-    blur: number;
-    spread: number;
-    color: RGBA;
-    type: 'drop-shadow' | 'inner-shadow';
-  }>;
+  value: ShadowEntry[];
 }
 
 export interface TypographyTokenValue {
@@ -82,7 +89,12 @@ export interface TypographyTokenValue {
     fontStyle: string;
     fontWeight: number;
     fontSize: number;
-    lineHeight: number | 'AUTO';
+    /**
+     * - number: pixel value (e.g. 24 → "24px")
+     * - 'AUTO': renders as "normal"
+     * - { value, unit: 'percent' }: percentage stored as unitless ratio (e.g. 150% → { value: 1.5, unit: 'percent' })
+     */
+    lineHeight: number | 'AUTO' | { value: number; unit: 'percent' };
     letterSpacing: number;
     paragraphSpacing: number;
     textCase?: string;
@@ -197,6 +209,8 @@ export interface ExportOptions {
   cssHeadingTextWrapBalance?: boolean;
   /** Per-family font fallback stacks, e.g. { "Outfit": "system-ui, sans-serif" } */
   fontFallbacks?: Record<string, string>;
+  /** When using Multiple Files: split effect tokens into separate files per first group-path segment (e.g. shadow.css, blur.css) */
+  splitEffectGroups?: boolean;
 }
 
 export interface PluginSettings {

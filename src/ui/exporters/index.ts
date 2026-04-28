@@ -41,8 +41,10 @@ export function buildExportArtifacts({ tokens, format, options, tokenLookup }: B
 		fileName: chunk.fileName,
 		format,
 		contents: renderer(chunk.sections, options, chunk.modeInFileName),
-		// Include collection name for multi-file exports to enable preview targeting
-		collectionName: chunk.sections[0]?.collectionName
+		// Include collection name for multi-file exports to enable preview targeting.
+		// chunk.collectionLabel takes precedence (e.g. split-effects mode) so sidebar
+		// group clicks can resolve to the specific sub-file.
+		collectionName: chunk.collectionLabel ?? chunk.sections[0]?.collectionName
 	}));
 }
 

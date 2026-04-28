@@ -296,7 +296,7 @@ async function resolveVariableValue(
     const resolved = await resolveVariableValue(aliasVariable as FigmaVariable, modeId, visited, variablesById);
     return {
       value: resolved.value,
-      aliasOf: resolved.aliasOf ?? aliasId
+      aliasOf: aliasId
     };
   }
 

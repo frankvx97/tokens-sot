@@ -2,7 +2,7 @@ import type { ExportOptions } from '@/shared/types';
 import type { TokenSection, TokenSectionEntry } from './types';
 import { toCasing } from '../utils/casing';
 import { formatColor, formatCompositeColor } from '../utils/color';
-import { pxToRem, roundTo, quoteFontFamily } from '../utils/units';
+import { pxToRem, roundTo, quoteFontFamily, mapFontWeightString } from '../utils/units';
 
 export function renderTailwind(sections: TokenSection[], options: ExportOptions, _modeInFileName?: boolean): string {
   if (!sections.length) {
@@ -38,6 +38,12 @@ export function renderTailwind(sections: TokenSection[], options: ExportOptions,
   renderCategory(lines, 'boxShadow', categorized.boxShadow, options.includeTopLevelName, (payload) =>
     formatShadowPayload(payload.entry, options.includeTopLevelName)
   );
+  renderCategory(lines, 'blur', categorized.blur, options.includeTopLevelName, (payload) =>
+    formatBlurPayload(payload.entry, useRem, options.includeTopLevelName)
+  );
+  renderCategory(lines, 'backdropBlur', categorized.backdropBlur, options.includeTopLevelName, (payload) =>
+    formatBlurPayload(payload.entry, useRem, options.includeTopLevelName)
+  );
 
   lines.push('    },');
   lines.push('  },');
@@ -54,6 +60,8 @@ interface CategorizedEntries {
   fontWeight: SectionEntryWithLabel[];
   letterSpacing: SectionEntryWithLabel[];
   boxShadow: SectionEntryWithLabel[];
+  blur: SectionEntryWithLabel[];
+  backdropBlur: SectionEntryWithLabel[];
 }
 
 interface SectionEntryWithLabel {
@@ -69,7 +77,9 @@ function categorizeEntries(sections: TokenSection[]): CategorizedEntries {
     fontSize: [],
     fontWeight: [],
     letterSpacing: [],
-    boxShadow: []
+    boxShadow: [],
+    blur: [],
+    backdropBlur: []
   };
 
   sections.forEach((section) => {
@@ -91,9 +101,30 @@ function categorizeEntries(sections: TokenSection[]): CategorizedEntries {
           bucket.fontWeight.push(payload);
           bucket.letterSpacing.push(payload);
           break;
-        case 'shadow':
+        case 'custom': {
+          if (entry.mode.value?.type === 'string' && mapFontWeightString(entry.mode.value.value) !== null) {
+            bucket.fontWeight.push(payload);
+          }
+          break;
+        }
+        case 'shadow': {
+          const v = entry.mode.value;
+          if (v?.type === 'shadow') {
+            const arr = v.value;
+            const onlyLayerBlur = arr.length > 0 && arr.every((e) => e.type === 'layer-blur');
+            const onlyBackdropBlur = arr.length > 0 && arr.every((e) => e.type === 'background-blur');
+            if (onlyLayerBlur) {
+              bucket.blur.push(payload);
+              break;
+            }
+            if (onlyBackdropBlur) {
+              bucket.backdropBlur.push(payload);
+              break;
+            }
+          }
           bucket.boxShadow.push(payload);
           break;
+        }
       }
     });
   });
@@ -205,7 +236,14 @@ function formatFontSizePayload(entry: TokenSectionEntry, useRem: boolean, includ
   if (lineHeight === 'AUTO') {
     return `'${sizeValue}'`;
   }
-  const lh = typeof lineHeight === 'number' ? (useRem ? `${pxToRem(lineHeight)}rem` : `${lineHeight}px`) : lineHeight;
+  let lh: string;
+  if (typeof lineHeight === 'object' && lineHeight && lineHeight.unit === 'percent') {
+    lh = String(roundTo(lineHeight.value, 3));
+  } else if (typeof lineHeight === 'number') {
+    lh = useRem ? `${pxToRem(lineHeight)}rem` : `${lineHeight}px`;
+  } else {
+    lh = String(lineHeight);
+  }
   return `['${sizeValue}', { lineHeight: '${lh}' }]`;
 }
 
@@ -213,6 +251,10 @@ function formatFontWeightPayload(entry: TokenSectionEntry, includeTopLevelName: 
   if (entry.aliasTarget) {
     const aliasKey = generateTailwindKey(entry.aliasTarget, includeTopLevelName);
     return `'@alias ${aliasKey}'`;
+  }
+  if (entry.mode.value?.type === 'string') {
+    const numericWeight = mapFontWeightString(entry.mode.value.value);
+    return numericWeight !== null ? String(numericWeight) : null;
   }
   if (entry.mode.value?.type !== 'typography') return null;
   return String(entry.mode.value.value.fontWeight);
@@ -224,13 +266,34 @@ function formatShadowPayload(entry: TokenSectionEntry, includeTopLevelName: bool
     return `'@alias ${aliasKey}'`;
   }
   if (entry.mode.value?.type !== 'shadow') return null;
-  const value = entry.mode.value.value
+  const shadowEntries = entry.mode.value.value.filter(
+    (e): e is Extract<typeof e, { type: 'drop-shadow' | 'inner-shadow' }> =>
+      e.type === 'drop-shadow' || e.type === 'inner-shadow'
+  );
+  if (!shadowEntries.length) return null;
+  const value = shadowEntries
     .map((shadow) => {
       const color = formatColor(shadow.color, 'rgb');
       const inset = shadow.type === 'inner-shadow' ? 'inset ' : '';
       return `${inset}${shadow.x}px ${shadow.y}px ${shadow.blur}px ${shadow.spread}px ${color}`;
     })
     .join(', ');
+  return `'${value}'`;
+}
+
+function formatBlurPayload(entry: TokenSectionEntry, useRem: boolean, includeTopLevelName: boolean): string | null {
+  if (entry.aliasTarget) {
+    const aliasKey = generateTailwindKey(entry.aliasTarget, includeTopLevelName);
+    return `'@alias ${aliasKey}'`;
+  }
+  if (entry.mode.value?.type !== 'shadow') return null;
+  const blurEntry = entry.mode.value.value.find(
+    (e): e is Extract<typeof e, { type: 'layer-blur' | 'background-blur' }> =>
+      e.type === 'layer-blur' || e.type === 'background-blur'
+  );
+  if (!blurEntry) return null;
+  const radius = blurEntry.radius;
+  const value = useRem ? `${roundTo(pxToRem(radius), 4)}rem` : `${roundTo(radius, 3)}px`;
   return `'${value}'`;
 }
 

@@ -193,16 +193,11 @@ export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose,
     return Array.from(families).sort();
   }, [state]);
 
-  // Body/paragraph typography tokens available for the body-baseline picker.
-  // Matches against Figma group path (e.g. "body", "paragraph", "paragraphs").
+  // Any selected typography token is eligible for the body-baseline picker.
   const bodyTokenOptions = React.useMemo(() => {
     const tokens = getSelectedTokens(state);
     return tokens
-      .filter(
-        (token: NormalizedToken) =>
-          token.kind === 'typography' &&
-          (token.groupPath ?? []).some((g) => /^(body|paragraphs?)$/i.test(g))
-      )
+      .filter((token: NormalizedToken) => token.kind === 'typography')
       .map((token: NormalizedToken) => ({
         id: token.id,
         label: [...(token.groupPath ?? []), token.name].join(' / ')
@@ -366,12 +361,12 @@ export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose,
                 )}
                 {localSettings.cssIncludeBodyBaseline && bodyTokenOptions.length === 0 && (
                   <div className="px-3 text-xs text-slate-500">
-                    No body/paragraph typography tokens in the current selection. Organize typography styles under a group named “body” or “paragraph” in Figma.
+                    No typography styles selected.
                   </div>
                 )}
                 <CheckboxRow
                   label="Include h1–h6 element defaults"
-                  description="Maps heading tokens (group “headings”) to h1…h6 by font-size rank."
+                  description="Maps heading tokens (named “Heading 1…6”, “h1…h6”, or grouped under “headings”) to h1…h6 by font-size rank."
                   checked={localSettings.cssIncludeHeadingDefaults ?? false}
                   onChange={(checked) => updateSetting('cssIncludeHeadingDefaults', checked)}
                 />
@@ -403,6 +398,14 @@ export const ConfigureModal: React.FC<ConfigureModalProps> = ({ isOpen, onClose,
                 value={localSettings.exportFileStrategy}
                 onChange={(value) => updateSetting('exportFileStrategy', value as 'single' | 'multiple')}
               />
+              {localSettings.exportFileStrategy === 'multiple' && (
+                <CheckboxRow
+                  label="Split effects by group"
+                  description="Splits effect tokens into separate files per first group segment (e.g. shadow.css, blur.css)."
+                  checked={localSettings.splitEffectGroups ?? false}
+                  onChange={(checked) => updateSetting('splitEffectGroups', checked)}
+                />
+              )}
             </SettingsSection>
 
             <SettingsSection title="Advanced Options">
