@@ -4,6 +4,11 @@ All notable changes made during this session are documented here.
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-04-28
+
+### Fixed
+- **Ignore Aliases** now applies to effect-style sub-aliases (shadow color/x/y/blur/spread, layer/background blur radius) and typography sub-axes (font family/size/weight/line-height/letter-spacing). Previously the toggle only suppressed top-level variable-to-variable aliases, so effect styles bound to Figma variables still emitted `var(--field-shadow)` / `$...` / `@...` references when the user expected resolved values. Affects the CSS, Sass, Less, Stylus, Tailwind v4, JavaScript, and JSON (DTCG) exporters.
+
 ## [1.2.1] - 2026-04-28
 
 ### Added
