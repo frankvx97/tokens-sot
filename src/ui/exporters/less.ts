@@ -52,9 +52,18 @@ function buildLessDeclarations(entry: TokenSectionEntry, options: ExportOptions,
   // Blur-only effect tokens: variable + companion Less mixin (.name()).
   // The grouping comment is emitted once per blur-kind run by the section iterator.
   if (entry.mode.value?.type === 'shadow' && !entry.aliasTarget) {
-    const classification = classifyShadowToken(entry.mode.value);
+    const shadowValue = entry.mode.value;
+    const classification = classifyShadowToken(shadowValue);
     if (classification.kind === 'layer-blur' || classification.kind === 'background-blur') {
-      const radius = formatBlurRadius(classification.radius, options.unit);
+      const blurEntry = shadowValue.value.find(
+        (e) => e.type === 'layer-blur' || e.type === 'background-blur'
+      ) as Extract<typeof shadowValue.value[number], { type: 'layer-blur' | 'background-blur' }> | undefined;
+      const radius = formatBlurRadius(
+        classification.radius,
+        options.unit,
+        blurEntry?.radiusAlias,
+        options.ignoreAliases ? undefined : (alias) => `@${toCasing(alias, options.casing)}`
+      );
       const property = classification.kind === 'background-blur' ? 'backdrop-filter' : 'filter';
       return [
         `@${varName}: ${radius};`,
@@ -88,8 +97,8 @@ function buildLessDeclarations(entry: TokenSectionEntry, options: ExportOptions,
   return [`@${varName}: ${value};`];
 }
 
-function formatLessAliasRef(aliasName: string | undefined, casing: ExportOptions['casing']): string | null {
-  if (!aliasName) return null;
+function formatLessAliasRef(aliasName: string | undefined, casing: ExportOptions['casing'], ignore?: boolean): string | null {
+  if (ignore || !aliasName) return null;
   return `@${toCasing(aliasName, casing)}`;
 }
 
@@ -100,11 +109,11 @@ function buildLessTypographyVars(
 ): string[] {
   const cas = options.casing;
   const decls: string[] = [];
-  decls.push(`@${varName}-font-family: ${formatLessAliasRef(typo.fontFamilyAlias, cas) ?? buildFontStack(typo.fontFamily, options.fontFallbacks)};`);
-  decls.push(`@${varName}-font-size: ${formatLessAliasRef(typo.fontSizeAlias, cas) ?? formatWithUnit(typo.fontSize, options.unit)};`);
-  decls.push(`@${varName}-font-weight: ${formatLessAliasRef(typo.fontWeightAlias, cas) ?? typo.fontWeight};`);
-  decls.push(`@${varName}-line-height: ${formatLessAliasRef(typo.lineHeightAlias, cas) ?? formatLineHeight(typo.lineHeight, options.unit)};`);
-  decls.push(`@${varName}-letter-spacing: ${formatLessAliasRef(typo.letterSpacingAlias, cas) ?? formatLetterSpacing(typo.letterSpacing, options.unit)};`);
+  decls.push(`@${varName}-font-family: ${formatLessAliasRef(typo.fontFamilyAlias, cas, options.ignoreAliases) ?? buildFontStack(typo.fontFamily, options.fontFallbacks)};`);
+  decls.push(`@${varName}-font-size: ${formatLessAliasRef(typo.fontSizeAlias, cas, options.ignoreAliases) ?? formatWithUnit(typo.fontSize, options.unit)};`);
+  decls.push(`@${varName}-font-weight: ${formatLessAliasRef(typo.fontWeightAlias, cas, options.ignoreAliases) ?? typo.fontWeight};`);
+  decls.push(`@${varName}-line-height: ${formatLessAliasRef(typo.lineHeightAlias, cas, options.ignoreAliases) ?? formatLineHeight(typo.lineHeight, options.unit)};`);
+  decls.push(`@${varName}-letter-spacing: ${formatLessAliasRef(typo.letterSpacingAlias, cas, options.ignoreAliases) ?? formatLetterSpacing(typo.letterSpacing, options.unit)};`);
 
   const textTransform = mapTextCase(typo.textCase);
   if (textTransform) {
@@ -131,11 +140,11 @@ function buildLessTypographyMixin(
   const cas = options.casing;
   const lines: string[] = [];
   lines.push(`.${varName}() {`);
-  lines.push(`  font-family: ${formatLessAliasRef(typo.fontFamilyAlias, cas) ?? buildFontStack(typo.fontFamily, options.fontFallbacks)};`);
-  lines.push(`  font-size: ${formatLessAliasRef(typo.fontSizeAlias, cas) ?? formatWithUnit(typo.fontSize, options.unit)};`);
-  lines.push(`  font-weight: ${formatLessAliasRef(typo.fontWeightAlias, cas) ?? typo.fontWeight};`);
-  lines.push(`  line-height: ${formatLessAliasRef(typo.lineHeightAlias, cas) ?? formatLineHeight(typo.lineHeight, options.unit)};`);
-  lines.push(`  letter-spacing: ${formatLessAliasRef(typo.letterSpacingAlias, cas) ?? formatLetterSpacing(typo.letterSpacing, options.unit)};`);
+  lines.push(`  font-family: ${formatLessAliasRef(typo.fontFamilyAlias, cas, options.ignoreAliases) ?? buildFontStack(typo.fontFamily, options.fontFallbacks)};`);
+  lines.push(`  font-size: ${formatLessAliasRef(typo.fontSizeAlias, cas, options.ignoreAliases) ?? formatWithUnit(typo.fontSize, options.unit)};`);
+  lines.push(`  font-weight: ${formatLessAliasRef(typo.fontWeightAlias, cas, options.ignoreAliases) ?? typo.fontWeight};`);
+  lines.push(`  line-height: ${formatLessAliasRef(typo.lineHeightAlias, cas, options.ignoreAliases) ?? formatLineHeight(typo.lineHeight, options.unit)};`);
+  lines.push(`  letter-spacing: ${formatLessAliasRef(typo.letterSpacingAlias, cas, options.ignoreAliases) ?? formatLetterSpacing(typo.letterSpacing, options.unit)};`);
 
   const textTransform = mapTextCase(typo.textCase);
   if (textTransform) {
@@ -200,8 +209,14 @@ function formatTokenValue(
       return value.value ? 'true' : 'false';
     case 'shadow': {
       const c = classifyShadowToken(value);
-      if (c.kind === 'shadow' || c.kind === 'mixed') return formatShadowList(c.shadows, options.color);
-      if (c.kind === 'layer-blur' || c.kind === 'background-blur') return formatBlurRadius(c.radius, options.unit);
+      const aliasResolver = options.ignoreAliases
+        ? undefined
+        : (alias: string) => `@${toCasing(alias, options.casing)}`;
+      const blurEntry = value.value.find(
+        (e) => e.type === 'layer-blur' || e.type === 'background-blur'
+      ) as Extract<typeof value.value[number], { type: 'layer-blur' | 'background-blur' }> | undefined;
+      if (c.kind === 'shadow' || c.kind === 'mixed') return formatShadowList(c.shadows, options.color, aliasResolver);
+      if (c.kind === 'layer-blur' || c.kind === 'background-blur') return formatBlurRadius(c.radius, options.unit, blurEntry?.radiusAlias, aliasResolver);
       return null;
     }
     case 'gradient': {

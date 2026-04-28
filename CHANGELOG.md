@@ -4,6 +4,16 @@ All notable changes made during this session are documented here.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-04-28
+
+### Added
+- **Effects exporter** with shadow and blur entry support across all formats. `ShadowTokenValue` now models `layer-blur` and `background-blur` entries alongside `drop-shadow` / `inner-shadow`.
+- **Split effect groups** option (Multiple Files mode) — splits effect tokens into per-group files (e.g. `shadow.css`, `blur.css`) based on the first group-path segment. Sidebar/preview routing handles the split-effect collection labels.
+- **Percent line-height** support for typography tokens — Figma `PERCENT` line-height values are preserved as `{ value, unit: 'percent' }` and rendered correctly across CSS, Sass, Less, Stylus, JS, JSON, and Tailwind v4 outputs.
+
+### Fixed
+- Effect, color, and body-baseline export bugs across the CSS, Sass, Less, Stylus, JavaScript, JSON, Tailwind v3, and Tailwind v4 exporters.
+
 ## [1.2.0] - 2026-04-18
 
 ### Added

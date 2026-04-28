@@ -60,7 +60,7 @@ export function renderTailwindV4(sections: TokenSection[], options: ExportOption
         }
         case 'typography': {
           const typo = value.value;
-          const v4Alias = (a: string | undefined) => a ? `var(--${toCasing(a, 'kebab-case')})` : null;
+          const v4Alias = (a: string | undefined) => (a && !options.ignoreAliases) ? `var(--${toCasing(a, 'kebab-case')})` : null;
           themeLines.push(`  --font-${key}: ${v4Alias(typo.fontFamilyAlias) ?? buildFontStack(typo.fontFamily, options.fontFallbacks)};`);
           themeLines.push(`  --text-${key}: ${v4Alias(typo.fontSizeAlias) ?? formatWithUnit(typo.fontSize, options.unit)};`);
           themeLines.push(`  --text-${key}--line-height: ${v4Alias(typo.lineHeightAlias) ?? formatLineHeight(typo.lineHeight, options.unit)};`);
@@ -95,12 +95,18 @@ export function renderTailwindV4(sections: TokenSection[], options: ExportOption
               e.type === 'layer-blur' || e.type === 'background-blur'
           );
 
+          const aliasVar = (a: string | undefined) => (a && !options.ignoreAliases) ? `var(--${toCasing(a, 'kebab-case')})` : null;
+
           if (shadowEntries.length) {
             const shadowStr = shadowEntries
               .map((shadow) => {
-                const color = formatColor(shadow.color, 'rgb');
+                const color = aliasVar(shadow.colorAlias) ?? formatColor(shadow.color, 'rgb');
+                const x = aliasVar(shadow.xAlias) ?? `${shadow.x}px`;
+                const y = aliasVar(shadow.yAlias) ?? `${shadow.y}px`;
+                const blur = aliasVar(shadow.blurAlias) ?? `${shadow.blur}px`;
+                const spread = aliasVar(shadow.spreadAlias) ?? `${shadow.spread}px`;
                 const inset = shadow.type === 'inner-shadow' ? 'inset ' : '';
-                return `${inset}${shadow.x}px ${shadow.y}px ${shadow.blur}px ${shadow.spread}px ${color}`;
+                return `${inset}${x} ${y} ${blur} ${spread} ${color}`;
               })
               .join(', ');
             themeLines.push(`  --shadow-${key}: ${shadowStr};`);
@@ -108,7 +114,7 @@ export function renderTailwindV4(sections: TokenSection[], options: ExportOption
 
           if (blurEntries.length && !shadowEntries.length) {
             const blur = blurEntries[0];
-            const radius = useRem ? `${roundTo(pxToRem(blur.radius), 4)}rem` : `${roundTo(blur.radius, 3)}px`;
+            const radius = aliasVar(blur.radiusAlias) ?? (useRem ? `${roundTo(pxToRem(blur.radius), 4)}rem` : `${roundTo(blur.radius, 3)}px`);
             const prefix = blur.type === 'background-blur' ? '--backdrop-blur' : '--blur';
             themeLines.push(`  ${prefix}-${key}: ${radius};`);
           }
