@@ -131,7 +131,7 @@ function formatTokenValueForJS(
     case 'typography': {
       const typo = value.value;
       const cas = options.casing;
-      const jsAlias = (a: string | undefined) => a ? `@alias ${toCasing(a, cas)}` : null;
+      const jsAlias = (a: string | undefined) => (a && !options.ignoreAliases) ? `@alias ${toCasing(a, cas)}` : null;
       const result: Record<string, unknown> = {
         fontFamily: jsAlias(typo.fontFamilyAlias) ?? buildFontStack(typo.fontFamily, options.fontFallbacks),
         fontSize: jsAlias(typo.fontSizeAlias) ?? formatWithUnit(typo.fontSize, options.unit),

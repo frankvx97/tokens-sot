@@ -38,20 +38,42 @@ export function classifyShadowToken(value: ShadowTokenValue): ShadowTokenClassif
   return { kind: 'mixed', shadows, blurs };
 }
 
+export type ShadowAliasResolver = (aliasName: string) => string;
+
 export function formatShadowList(
   shadows: Extract<ShadowEntry, { type: 'drop-shadow' | 'inner-shadow' }>[],
-  color: ColorFormat
+  color: ColorFormat,
+  aliasResolver?: ShadowAliasResolver
 ): string {
-  return shadows
+  const resolve = (alias: string | undefined, fallback: string): string => {
+    if (alias && aliasResolver) return aliasResolver(alias);
+    return fallback;
+  };
+  // Figma stores effects bottom-to-top (first array entry paints below later
+  // entries). CSS box-shadow paints the first comma-separated layer on top.
+  // Reverse so the visually-topmost layer (e.g. the inner halo of a focus ring)
+  // is emitted first and renders above the outer layers.
+  return [...shadows]
+    .reverse()
     .map((shadow) => {
-      const colorStr = formatColor(shadow.color, color);
+      const colorStr = resolve(shadow.colorAlias, formatColor(shadow.color, color));
+      const xStr = resolve(shadow.xAlias, `${shadow.x}px`);
+      const yStr = resolve(shadow.yAlias, `${shadow.y}px`);
+      const blurStr = resolve(shadow.blurAlias, `${shadow.blur}px`);
+      const spreadStr = resolve(shadow.spreadAlias, `${shadow.spread}px`);
       const inset = shadow.type === 'inner-shadow' ? 'inset ' : '';
-      return `${inset}${shadow.x}px ${shadow.y}px ${shadow.blur}px ${shadow.spread}px ${colorStr}`;
+      return `${inset}${xStr} ${yStr} ${blurStr} ${spreadStr} ${colorStr}`;
     })
     .join(', ');
 }
 
-export function formatBlurRadius(radius: number, unit: DimensionUnit): string {
+export function formatBlurRadius(
+  radius: number,
+  unit: DimensionUnit,
+  radiusAlias?: string,
+  aliasResolver?: ShadowAliasResolver
+): string {
+  if (radiusAlias && aliasResolver) return aliasResolver(radiusAlias);
   return formatWithUnit(radius, unit);
 }
 

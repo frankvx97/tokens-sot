@@ -52,9 +52,18 @@ function buildStylusDeclaration(entry: TokenSectionEntry, options: ExportOptions
   // Blur-only effect tokens: variable + companion Stylus mixin.
   // The grouping comment is emitted once per blur-kind run by the section iterator.
   if (entry.mode.value?.type === 'shadow' && !entry.aliasTarget) {
-    const classification = classifyShadowToken(entry.mode.value);
+    const shadowValue = entry.mode.value;
+    const classification = classifyShadowToken(shadowValue);
     if (classification.kind === 'layer-blur' || classification.kind === 'background-blur') {
-      const radius = formatBlurRadius(classification.radius, options.unit);
+      const blurEntry = shadowValue.value.find(
+        (e) => e.type === 'layer-blur' || e.type === 'background-blur'
+      ) as Extract<typeof shadowValue.value[number], { type: 'layer-blur' | 'background-blur' }> | undefined;
+      const radius = formatBlurRadius(
+        classification.radius,
+        options.unit,
+        blurEntry?.radiusAlias,
+        options.ignoreAliases ? undefined : (alias) => toCasing(alias, options.casing)
+      );
       const property = classification.kind === 'background-blur' ? 'backdrop-filter' : 'filter';
       return [
         `${varName} = ${radius}`,
@@ -123,7 +132,7 @@ function formatTokenValue(
     case 'typography': {
       const typo = value.value;
       const cas = options.casing;
-      const stylusAlias = (a: string | undefined) => a ? toCasing(a, cas) : null;
+      const stylusAlias = (a: string | undefined) => (a && !options.ignoreAliases) ? toCasing(a, cas) : null;
       const lines = [
         `  font-family: ${stylusAlias(typo.fontFamilyAlias) ?? buildFontStack(typo.fontFamily, options.fontFallbacks)}`,
         `  font-size: ${stylusAlias(typo.fontSizeAlias) ?? formatWithUnit(typo.fontSize, options.unit)}`,
@@ -142,8 +151,14 @@ function formatTokenValue(
     }
     case 'shadow': {
       const c = classifyShadowToken(value);
-      if (c.kind === 'shadow' || c.kind === 'mixed') return formatShadowList(c.shadows, options.color);
-      if (c.kind === 'layer-blur' || c.kind === 'background-blur') return formatBlurRadius(c.radius, options.unit);
+      const aliasResolver = options.ignoreAliases
+        ? undefined
+        : (alias: string) => toCasing(alias, options.casing);
+      const blurEntry = value.value.find(
+        (e) => e.type === 'layer-blur' || e.type === 'background-blur'
+      ) as Extract<typeof value.value[number], { type: 'layer-blur' | 'background-blur' }> | undefined;
+      if (c.kind === 'shadow' || c.kind === 'mixed') return formatShadowList(c.shadows, options.color, aliasResolver);
+      if (c.kind === 'layer-blur' || c.kind === 'background-blur') return formatBlurRadius(c.radius, options.unit, blurEntry?.radiusAlias, aliasResolver);
       return null;
     }
     case 'gradient': {

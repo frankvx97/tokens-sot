@@ -71,10 +71,17 @@ export type ShadowEntry =
       blur: number;
       spread: number;
       color: RGBA;
+      // Alias references (variable binding names from Figma bound variables)
+      colorAlias?: string;
+      xAlias?: string;
+      yAlias?: string;
+      blurAlias?: string;
+      spreadAlias?: string;
     }
   | {
       type: 'layer-blur' | 'background-blur';
       radius: number;
+      radiusAlias?: string;
     };
 
 export interface ShadowTokenValue {

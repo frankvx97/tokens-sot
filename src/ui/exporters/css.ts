@@ -157,10 +157,10 @@ function buildElementDefaultBlocks(sections: TokenSection[], options: ExportOpti
       const typo = bodyEntry.mode.value.value;
       const cas = options.casing;
       const block: string[] = ['body {'];
-      block.push(`  font-family: ${formatCSSAliasRef(typo.fontFamilyAlias, cas) ?? buildFontStack(typo.fontFamily, options.fontFallbacks)};`);
-      block.push(`  font-size: ${formatCSSAliasRef(typo.fontSizeAlias, cas) ?? formatWithUnit(typo.fontSize, options.unit)};`);
-      block.push(`  line-height: ${formatCSSAliasRef(typo.lineHeightAlias, cas) ?? formatLineHeight(typo.lineHeight, options.unit)};`);
-      block.push(`  font-weight: ${formatCSSAliasRef(typo.fontWeightAlias, cas) ?? String(typo.fontWeight)};`);
+      block.push(`  font-family: ${formatCSSAliasRef(typo.fontFamilyAlias, cas, options.ignoreAliases) ?? buildFontStack(typo.fontFamily, options.fontFallbacks)};`);
+      block.push(`  font-size: ${formatCSSAliasRef(typo.fontSizeAlias, cas, options.ignoreAliases) ?? formatWithUnit(typo.fontSize, options.unit)};`);
+      block.push(`  line-height: ${formatCSSAliasRef(typo.lineHeightAlias, cas, options.ignoreAliases) ?? formatLineHeight(typo.lineHeight, options.unit)};`);
+      block.push(`  font-weight: ${formatCSSAliasRef(typo.fontWeightAlias, cas, options.ignoreAliases) ?? String(typo.fontWeight)};`);
       block.push('}');
       blocks.push(block);
     }
@@ -200,9 +200,21 @@ function buildCSSDeclarations(entry: TokenSectionEntry, options: ExportOptions, 
   // Blur-only effect tokens emit a bare length value; the surrounding loop adds
   // a single grouping comment per run of consecutive blurs of the same kind.
   if (entry.mode.value?.type === 'shadow' && !entry.aliasTarget) {
-    const classification = classifyShadowToken(entry.mode.value);
+    const shadowValue = entry.mode.value;
+    const classification = classifyShadowToken(shadowValue);
     if (classification.kind === 'layer-blur' || classification.kind === 'background-blur') {
-      const radius = formatBlurRadius(classification.radius, options.unit);
+      const blurEntry = shadowValue.value.find(
+        (e) => e.type === 'layer-blur' || e.type === 'background-blur'
+      ) as Extract<typeof shadowValue.value[number], { type: 'layer-blur' | 'background-blur' }> | undefined;
+      const resolver = options.ignoreAliases
+        ? undefined
+        : (alias: string) => `var(--${toCasing(alias, options.casing)})`;
+      const radius = formatBlurRadius(
+        classification.radius,
+        options.unit,
+        blurEntry?.radiusAlias,
+        resolver
+      );
       return [`${varName}: ${radius};`];
     }
   }
@@ -236,8 +248,8 @@ function buildCSSDeclarations(entry: TokenSectionEntry, options: ExportOptions, 
   return [`${varName}: ${value};`];
 }
 
-function formatCSSAliasRef(aliasName: string | undefined, casing: ExportOptions['casing']): string | null {
-  if (!aliasName) return null;
+function formatCSSAliasRef(aliasName: string | undefined, casing: ExportOptions['casing'], ignore?: boolean): string | null {
+  if (ignore || !aliasName) return null;
   return `var(--${toCasing(aliasName, casing)})`;
 }
 
@@ -249,11 +261,11 @@ function buildCSSTypographyDeclarations(
   const decls: string[] = [];
   const cas = options.casing;
 
-  const fontFamilyVal = formatCSSAliasRef(typo.fontFamilyAlias, cas) ?? buildFontStack(typo.fontFamily, options.fontFallbacks);
-  const fontSizeVal = formatCSSAliasRef(typo.fontSizeAlias, cas) ?? formatWithUnit(typo.fontSize, options.unit);
-  const lineHeightVal = formatCSSAliasRef(typo.lineHeightAlias, cas) ?? formatLineHeight(typo.lineHeight, options.unit);
-  const fontWeightVal = formatCSSAliasRef(typo.fontWeightAlias, cas) ?? String(typo.fontWeight);
-  const letterSpacingVal = formatCSSAliasRef(typo.letterSpacingAlias, cas) ?? formatLetterSpacing(typo.letterSpacing, options.unit);
+  const fontFamilyVal = formatCSSAliasRef(typo.fontFamilyAlias, cas, options.ignoreAliases) ?? buildFontStack(typo.fontFamily, options.fontFallbacks);
+  const fontSizeVal = formatCSSAliasRef(typo.fontSizeAlias, cas, options.ignoreAliases) ?? formatWithUnit(typo.fontSize, options.unit);
+  const lineHeightVal = formatCSSAliasRef(typo.lineHeightAlias, cas, options.ignoreAliases) ?? formatLineHeight(typo.lineHeight, options.unit);
+  const fontWeightVal = formatCSSAliasRef(typo.fontWeightAlias, cas, options.ignoreAliases) ?? String(typo.fontWeight);
+  const letterSpacingVal = formatCSSAliasRef(typo.letterSpacingAlias, cas, options.ignoreAliases) ?? formatLetterSpacing(typo.letterSpacing, options.unit);
 
   decls.push(`${varName}-font-family: ${fontFamilyVal};`);
   decls.push(`${varName}-font-size: ${fontSizeVal};`);
@@ -284,11 +296,11 @@ function buildCSSTypographyClassBody(entry: TokenSectionEntry, options: ExportOp
   const cas = options.casing;
   const lines: string[] = [];
 
-  lines.push(`font-family: ${formatCSSAliasRef(typo.fontFamilyAlias, cas) ?? buildFontStack(typo.fontFamily, options.fontFallbacks)};`);
-  lines.push(`font-size: ${formatCSSAliasRef(typo.fontSizeAlias, cas) ?? formatWithUnit(typo.fontSize, options.unit)};`);
-  lines.push(`line-height: ${formatCSSAliasRef(typo.lineHeightAlias, cas) ?? formatLineHeight(typo.lineHeight, options.unit)};`);
-  lines.push(`font-weight: ${formatCSSAliasRef(typo.fontWeightAlias, cas) ?? String(typo.fontWeight)};`);
-  lines.push(`letter-spacing: ${formatCSSAliasRef(typo.letterSpacingAlias, cas) ?? formatLetterSpacing(typo.letterSpacing, options.unit)};`);
+  lines.push(`font-family: ${formatCSSAliasRef(typo.fontFamilyAlias, cas, options.ignoreAliases) ?? buildFontStack(typo.fontFamily, options.fontFallbacks)};`);
+  lines.push(`font-size: ${formatCSSAliasRef(typo.fontSizeAlias, cas, options.ignoreAliases) ?? formatWithUnit(typo.fontSize, options.unit)};`);
+  lines.push(`line-height: ${formatCSSAliasRef(typo.lineHeightAlias, cas, options.ignoreAliases) ?? formatLineHeight(typo.lineHeight, options.unit)};`);
+  lines.push(`font-weight: ${formatCSSAliasRef(typo.fontWeightAlias, cas, options.ignoreAliases) ?? String(typo.fontWeight)};`);
+  lines.push(`letter-spacing: ${formatCSSAliasRef(typo.letterSpacingAlias, cas, options.ignoreAliases) ?? formatLetterSpacing(typo.letterSpacing, options.unit)};`);
 
   const tt = mapTextCase(typo.textCase);
   if (tt) lines.push(`text-transform: ${tt};`);
@@ -352,14 +364,20 @@ function formatTokenValue(
       return value.value ? 'true' : 'false';
     case 'shadow': {
       const classification = classifyShadowToken(value);
+      const aliasResolver = options.ignoreAliases
+        ? undefined
+        : (alias: string) => `var(--${toCasing(alias, options.casing)})`;
+      const blurEntry = value.value.find(
+        (e) => e.type === 'layer-blur' || e.type === 'background-blur'
+      ) as Extract<typeof value.value[number], { type: 'layer-blur' | 'background-blur' }> | undefined;
       switch (classification.kind) {
         case 'shadow':
-          return formatShadowList(classification.shadows, options.color);
+          return formatShadowList(classification.shadows, options.color, aliasResolver);
         case 'layer-blur':
         case 'background-blur':
-          return formatBlurRadius(classification.radius, options.unit);
+          return formatBlurRadius(classification.radius, options.unit, blurEntry?.radiusAlias, aliasResolver);
         case 'mixed':
-          return formatShadowList(classification.shadows, options.color);
+          return formatShadowList(classification.shadows, options.color, aliasResolver);
         case 'empty':
           return null;
       }

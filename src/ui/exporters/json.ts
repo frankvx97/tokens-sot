@@ -286,7 +286,7 @@ function formatDTCGValue(value: TokenSectionEntry['mode']['value'], options: Exp
     case 'typography': {
       const typo = value.value;
       const aliasRef = (alias?: string) =>
-        alias ? `{${alias.split('/').map(sanitizeDTCGName).join('.')}}` : null;
+        (alias && !options.ignoreAliases) ? `{${alias.split('/').map(sanitizeDTCGName).join('.')}}` : null;
 
       const result: Record<string, unknown> = {
         fontFamily: aliasRef(typo.fontFamilyAlias) ?? [typo.fontFamily],

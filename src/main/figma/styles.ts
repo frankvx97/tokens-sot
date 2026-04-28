@@ -181,7 +181,7 @@ async function toStyleValue(style: BaseStyle, kind: TokenKind) {
     case 'typography':
       return await convertTextStyle(style as TextStyle);
     case 'shadow':
-      return convertEffectStyle(style as EffectStyle);
+      return await convertEffectStyle(style as EffectStyle);
     default:
       return {
         type: 'string',
@@ -393,11 +393,23 @@ async function convertTextStyle(style: TextStyle) {
   } as NormalizedToken['modes'][number]['value'];
 }
 
-function convertEffectStyle(style: EffectStyle) {
-  const entries = style.effects
-    .filter((effect) => effect.visible !== false)
-    .map((effect) => {
+async function convertEffectStyle(style: EffectStyle) {
+  const visible = style.effects.filter((effect) => effect.visible !== false);
+
+  const entries = await Promise.all(
+    visible.map(async (effect) => {
+      const bindings = (effect as any).boundVariables as
+        | Record<string, { id: string }>
+        | undefined;
+
       if (effect.type === 'DROP_SHADOW' || effect.type === 'INNER_SHADOW') {
+        const [colorAlias, xAlias, yAlias, blurAlias, spreadAlias] = await Promise.all([
+          resolveVariableName(bindings?.color),
+          resolveVariableName(bindings?.offsetX),
+          resolveVariableName(bindings?.offsetY),
+          resolveVariableName(bindings?.radius),
+          resolveVariableName(bindings?.spread),
+        ]);
         return {
           type: effect.type === 'DROP_SHADOW' ? 'drop-shadow' as const : 'inner-shadow' as const,
           x: effect.offset.x,
@@ -409,22 +421,37 @@ function convertEffectStyle(style: EffectStyle) {
             g: effect.color.g,
             b: effect.color.b,
             a: effect.color.a
-          }
+          },
+          ...(colorAlias && { colorAlias }),
+          ...(xAlias && { xAlias }),
+          ...(yAlias && { yAlias }),
+          ...(blurAlias && { blurAlias }),
+          ...(spreadAlias && { spreadAlias }),
         };
       }
       if (effect.type === 'LAYER_BLUR') {
-        return { type: 'layer-blur' as const, radius: effect.radius };
+        const radiusAlias = await resolveVariableName(bindings?.radius);
+        return {
+          type: 'layer-blur' as const,
+          radius: effect.radius,
+          ...(radiusAlias && { radiusAlias }),
+        };
       }
       if (effect.type === 'BACKGROUND_BLUR') {
-        return { type: 'background-blur' as const, radius: effect.radius };
+        const radiusAlias = await resolveVariableName(bindings?.radius);
+        return {
+          type: 'background-blur' as const,
+          radius: effect.radius,
+          ...(radiusAlias && { radiusAlias }),
+        };
       }
       return null;
     })
-    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+  );
 
   return {
     type: 'shadow',
-    value: entries
+    value: entries.filter((entry): entry is NonNullable<typeof entry> => entry !== null)
   } as NormalizedToken['modes'][number]['value'];
 }
 
