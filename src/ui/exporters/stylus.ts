@@ -2,8 +2,9 @@ import type { ExportOptions } from '@/shared/types';
 import type { TokenSection, TokenSectionEntry } from './types';
 import { toCasing } from '../utils/casing';
 import { formatColor, formatGradient, formatCompositeColor } from '../utils/color';
-import { formatWithUnit, formatLineHeight, formatLetterSpacing, buildFontStack, mapTextCase, mapTextDecoration, isLikelyFontWeight, mapFontWeightString } from '../utils/units';
+import { formatWithUnit, formatLineHeight, formatLetterSpacing, buildFontStack, mapTextCase, mapTextDecoration, mapFontWeightString } from '../utils/units';
 import { shouldShowModeNames, buildSectionLabel } from './sections';
+import { classifyShadowToken, formatShadowList, formatBlurRadius, getEffectGroupHeadings } from './effects';
 
 export function renderStylus(sections: TokenSection[], options: ExportOptions, modeInFileName?: boolean): string {
   if (!sections.length) {
@@ -18,7 +19,19 @@ export function renderStylus(sections: TokenSection[], options: ExportOptions, m
     const label = buildSectionLabel(section, showModes);
     lines.push(`// ${label}`);
 
+    let prevEffectGroupPath: string[] = [];
     section.entries.forEach((entry) => {
+      const { headings, nextPrev } = getEffectGroupHeadings(
+        entry.token,
+        prevEffectGroupPath,
+        section.collectionName
+      );
+      headings.forEach((h) => {
+        lines.push('');
+        lines.push(`// ${h}`);
+      });
+      prevEffectGroupPath = nextPrev;
+
       const declaration = buildStylusDeclaration(entry, options, includeModeInName ? section.modeName : null);
       if (declaration) {
         lines.push(declaration);
@@ -35,12 +48,28 @@ export function renderStylus(sections: TokenSection[], options: ExportOptions, m
 
 function buildStylusDeclaration(entry: TokenSectionEntry, options: ExportOptions, modeName: string | null): string | null {
   const varName = generateStylusVarName(entry.token, options.casing, modeName, options.includeTopLevelName);
+
+  // Blur-only effect tokens: variable + companion Stylus mixin.
+  // The grouping comment is emitted once per blur-kind run by the section iterator.
+  if (entry.mode.value?.type === 'shadow' && !entry.aliasTarget) {
+    const classification = classifyShadowToken(entry.mode.value);
+    if (classification.kind === 'layer-blur' || classification.kind === 'background-blur') {
+      const radius = formatBlurRadius(classification.radius, options.unit);
+      const property = classification.kind === 'background-blur' ? 'backdrop-filter' : 'filter';
+      return [
+        `${varName} = ${radius}`,
+        `${varName}()`,
+        `  ${property} blur(${varName})`
+      ].join('\n');
+    }
+  }
+
   const aliasName = entry.aliasTarget ? generateStylusVarName(entry.aliasTarget, options.casing, modeName, options.includeTopLevelName) : null;
   let value = aliasName ?? formatTokenValue(entry.mode.value, options);
   if (!value) return null;
 
   // Convert font weight strings to numeric CSS values
-  if (!aliasName && entry.mode.value?.type === 'string' && isLikelyFontWeight(entry.token.name, entry.token.groupPath)) {
+  if (!aliasName && entry.mode.value?.type === 'string') {
     const numericWeight = mapFontWeightString(entry.mode.value.value);
     if (numericWeight !== null) value = String(numericWeight);
   }
@@ -106,16 +135,17 @@ function formatTokenValue(
       if (textTransform) lines.push(`  text-transform: ${textTransform}`);
       const textDecoration = mapTextDecoration(typo.textDecoration);
       if (textDecoration) lines.push(`  text-decoration: ${textDecoration}`);
+      if (typo.paragraphSpacing && typo.paragraphSpacing > 0) {
+        lines.push(`  paragraph-spacing: ${formatWithUnit(typo.paragraphSpacing, options.unit)}`);
+      }
       return `{\n${lines.join('\n')}\n}`;
     }
-    case 'shadow':
-      return value.value
-        .map((shadow) => {
-          const colorStr = formatColor(shadow.color, options.color);
-          const inset = shadow.type === 'inner-shadow' ? 'inset ' : '';
-          return `${inset}${shadow.x}px ${shadow.y}px ${shadow.blur}px ${shadow.spread}px ${colorStr}`;
-        })
-        .join(', ');
+    case 'shadow': {
+      const c = classifyShadowToken(value);
+      if (c.kind === 'shadow' || c.kind === 'mixed') return formatShadowList(c.shadows, options.color);
+      if (c.kind === 'layer-blur' || c.kind === 'background-blur') return formatBlurRadius(c.radius, options.unit);
+      return null;
+    }
     case 'gradient': {
       const gradientType = value.gradientType === 'LINEAR_GRADIENT' ? 'linear-gradient' : 
                            value.gradientType === 'RADIAL_GRADIENT' ? 'radial-gradient' :

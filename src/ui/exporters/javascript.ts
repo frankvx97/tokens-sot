@@ -2,8 +2,9 @@ import type { ExportOptions } from '@/shared/types';
 import type { TokenSection, TokenSectionEntry } from './types';
 import { toCasing } from '../utils/casing';
 import { formatColor, formatCompositeColor } from '../utils/color';
-import { formatWithUnit, formatLetterSpacing, buildFontStack, mapTextCase, mapTextDecoration, isLikelyFontWeight, mapFontWeightString } from '../utils/units';
+import { formatWithUnit, formatLetterSpacing, buildFontStack, mapTextCase, mapTextDecoration, mapFontWeightString } from '../utils/units';
 import { shouldShowModeNames, buildSectionLabel } from './sections';
+import { isBlurEntry } from './effects';
 
 export function renderJavaScript(sections: TokenSection[], options: ExportOptions, modeInFileName?: boolean): string {
   if (!sections.length) {
@@ -67,7 +68,7 @@ function buildJSValue(entry: TokenSectionEntry, options: ExportOptions): string 
   }
 
   // Convert font weight strings to numeric CSS values
-  if (entry.mode.value?.type === 'string' && isLikelyFontWeight(entry.token.name, entry.token.groupPath)) {
+  if (entry.mode.value?.type === 'string') {
     const numericWeight = mapFontWeightString(entry.mode.value.value);
     if (numericWeight !== null) return String(numericWeight);
   }
@@ -135,24 +136,38 @@ function formatTokenValueForJS(
         fontFamily: jsAlias(typo.fontFamilyAlias) ?? buildFontStack(typo.fontFamily, options.fontFallbacks),
         fontSize: jsAlias(typo.fontSizeAlias) ?? formatWithUnit(typo.fontSize, options.unit),
         fontWeight: jsAlias(typo.fontWeightAlias) ?? typo.fontWeight,
-        lineHeight: jsAlias(typo.lineHeightAlias) ?? (typo.lineHeight === 'AUTO' ? 'normal' : formatWithUnit(typo.lineHeight as number, options.unit)),
+        lineHeight:
+          jsAlias(typo.lineHeightAlias) ??
+          (typo.lineHeight === 'AUTO'
+            ? 'normal'
+            : typeof typo.lineHeight === 'object' && typo.lineHeight?.unit === 'percent'
+              ? typo.lineHeight.value
+              : formatWithUnit(typo.lineHeight as number, options.unit)),
         letterSpacing: jsAlias(typo.letterSpacingAlias) ?? formatLetterSpacing(typo.letterSpacing, options.unit)
       };
       const textTransform = mapTextCase(typo.textCase);
       if (textTransform) result.textTransform = textTransform;
       const textDecoration = mapTextDecoration(typo.textDecoration);
       if (textDecoration) result.textDecoration = textDecoration;
+      if (typo.paragraphSpacing && typo.paragraphSpacing > 0) {
+        result.paragraphSpacing = formatWithUnit(typo.paragraphSpacing, options.unit);
+      }
       return result;
     }
     case 'shadow':
-      return value.value.map((shadow) => ({
-        x: `${shadow.x}px`,
-        y: `${shadow.y}px`,
-        blur: `${shadow.blur}px`,
-        spread: `${shadow.spread}px`,
-        color: formatColor(shadow.color, options.color),
-        type: shadow.type
-      }));
+      return value.value.map((entry) => {
+        if (isBlurEntry(entry)) {
+          return { type: entry.type, radius: `${entry.radius}px` };
+        }
+        return {
+          x: `${entry.x}px`,
+          y: `${entry.y}px`,
+          blur: `${entry.blur}px`,
+          spread: `${entry.spread}px`,
+          color: formatColor(entry.color, options.color),
+          type: entry.type
+        };
+      });
     case 'gradient':
       return {
         type: value.gradientType,

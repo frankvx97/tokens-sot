@@ -119,28 +119,49 @@ const AppShell: FC = () => {
   const previewTargetName = state.previewTargetName;
   const exportFileStrategy = state.settings.exportOptions.exportFileStrategy;
 
+  // Track the last successfully-resolved preview file so an unmatched click
+  // (e.g. clicking a sidebar group that doesn't correspond to any export file)
+  // doesn't snap the preview back to the first artifact.
+  const lastResolvedFileNameRef = useRef<string | null>(null);
+
   // Find the artifact to preview based on previewTargetName (for multi-file mode)
   const previewArtifact = useMemo(() => {
-    if (!exportArtifacts.length) return null;
+    if (!exportArtifacts.length) {
+      lastResolvedFileNameRef.current = null;
+      return null;
+    }
     const isMultiFileMode = exportFileStrategy === 'multiple';
-    
+
     // In multi-file mode with a target selected, find the matching artifact
     if (isMultiFileMode && previewTargetName && exportArtifacts.length > 1) {
       // Try matching by collection name first
       const byCollection = exportArtifacts.find(
         (artifact) => artifact.collectionName === previewTargetName
       );
-      if (byCollection) return byCollection;
+      if (byCollection) {
+        lastResolvedFileNameRef.current = byCollection.fileName;
+        return byCollection;
+      }
 
       // Try matching by filename containing the target name (for mode-level selection)
       const nameSlug = previewTargetName.toLowerCase().replace(/[^a-z0-9]+/gi, '-');
       const byFileName = exportArtifacts.find(
         (artifact) => artifact.fileName.toLowerCase().includes(nameSlug)
       );
-      if (byFileName) return byFileName;
+      if (byFileName) {
+        lastResolvedFileNameRef.current = byFileName.fileName;
+        return byFileName;
+      }
+
+      // No match — keep the last resolved file if it still exists in the artifact list
+      const sticky = lastResolvedFileNameRef.current
+        ? exportArtifacts.find((a) => a.fileName === lastResolvedFileNameRef.current) ?? null
+        : null;
+      if (sticky) return sticky;
     }
-    
+
     // Default to first artifact
+    lastResolvedFileNameRef.current = exportArtifacts[0]?.fileName ?? null;
     return exportArtifacts[0];
   }, [exportArtifacts, previewTargetName, exportFileStrategy]);
 

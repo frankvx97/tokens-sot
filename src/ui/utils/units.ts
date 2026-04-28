@@ -34,9 +34,15 @@ export function formatWithUnit(value: number, unit: UnitType, baseFontSize?: num
 
 /**
  * Format typography line height
- * Can be 'AUTO', a pixel value, or a percentage
+ * Can be 'AUTO', a pixel value, or a percentage object (stored as unitless ratio).
  */
-export function formatLineHeight(lineHeight: number | string, unit: UnitType, baseFontSize?: number): string {
+type LineHeightInput =
+  | number
+  | string
+  | 'AUTO'
+  | { value: number; unit: 'percent' };
+
+export function formatLineHeight(lineHeight: LineHeightInput, unit: UnitType, baseFontSize?: number): string {
   if (lineHeight === 'AUTO') {
     return 'normal';
   }
@@ -45,7 +51,12 @@ export function formatLineHeight(lineHeight: number | string, unit: UnitType, ba
     return lineHeight;
   }
 
-  return formatWithUnit(lineHeight, unit, baseFontSize);
+  if (typeof lineHeight === 'object' && lineHeight !== null && lineHeight.unit === 'percent') {
+    // CSS unitless ratio (preferred for inheritance)
+    return String(roundTo(lineHeight.value, 3));
+  }
+
+  return formatWithUnit(lineHeight as number, unit, baseFontSize);
 }
 
 /**
@@ -96,14 +107,6 @@ export function mapTextCase(textCase?: string): string | null {
     case 'ORIGINAL':
     default: return null;
   }
-}
-
-/**
- * Check if a token likely represents a font weight based on its name or group path.
- */
-export function isLikelyFontWeight(name: string, groupPath?: string[]): boolean {
-  const fullPath = [...(groupPath ?? []), name].join('/').toLowerCase();
-  return /weight/.test(fullPath);
 }
 
 /**

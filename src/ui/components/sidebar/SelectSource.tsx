@@ -22,6 +22,19 @@ import { cn } from '@/ui/utils/cn';
 import type { TokenTreeNode } from '@/shared/types';
 import type { WithSelection } from '@/ui/state/selectors';
 
+function getEmptyStyleCopy(key: string): string {
+  switch (key) {
+    case 'paint-styles':
+      return 'No color or gradient styles in this file.';
+    case 'text-styles':
+      return 'No text styles in this file.';
+    case 'effect-styles':
+      return 'No effect styles in this file.';
+    default:
+      return 'No styles in this file.';
+  }
+}
+
 interface SelectSourceItemProps {
   item: WithSelection;
   isDraggable: boolean;
@@ -49,6 +62,11 @@ function SelectSourceItem({
   const isBranch = Boolean(node.children?.length);
   const isTopLevel = level === 0;
   const isMode = node.type === 'mode';
+  const isEmptyStyleRoot =
+    isTopLevel &&
+    node.sourceType === 'style' &&
+    !isBranch;
+  const emptyStyleCopy = isEmptyStyleRoot ? getEmptyStyleCopy(node.key) : null;
 
   // Inline rename state — only used for top-level non-draggable items (Styles)
   const [isEditing, setIsEditing] = React.useState(false);
@@ -139,17 +157,26 @@ function SelectSourceItem({
     >
       <div
         className={cn(
-          'group flex text-sm text-slate-300 transition hover:bg-slate-800/60 min-w-0 overflow-hidden',
+          'group flex text-sm text-slate-300 transition min-w-0 overflow-hidden',
           isTopLevel ? 'h-12 items-center px-4 gap-2' : 'min-h-8 items-start py-1.5 px-2 rounded-md',
+          isEmptyStyleRoot ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-800/60',
           isBranch && !isEditing && 'cursor-pointer'
         )}
         onClick={() => {
           if (isEditing) return;
+          if (isEmptyStyleRoot) return;
           if (isBranch) {
             onToggleOpen(node.id, isOpen);
           }
-          // For mode/collection nodes, set preview target when clicked
-          if (onPreviewTarget && (node.type === 'mode' || node.type === 'collection')) {
+          // For mode/collection nodes, set preview target when clicked.
+          // Also for top-level (level 1) group nodes: these correspond to split-effect sub-files
+          // (e.g. shadow.css, blur.css) so clicking them should switch the preview.
+          if (
+            onPreviewTarget &&
+            (node.type === 'mode' ||
+              node.type === 'collection' ||
+              (node.type === 'group' && level === 1))
+          ) {
             onPreviewTarget(node.name);
           }
         }}
@@ -170,7 +197,9 @@ function SelectSourceItem({
         <Checkbox
           className={cn('mr-2', isDraggable && isTopLevel && 'ml-1')}
           checked={partiallySelected ? 'indeterminate' : selected}
+          disabled={isEmptyStyleRoot}
           onCheckedChange={(checked) => {
+            if (isEmptyStyleRoot) return;
             const nextState = checked === true || checked === 'indeterminate';
             onToggleSelection(node, nextState);
           }}
@@ -203,8 +232,12 @@ function SelectSourceItem({
               )}>
                 {node.name}
               </span>
-              {node.description && (
-                <span className="text-[11px] text-slate-500 break-words">{node.description}</span>
+              {emptyStyleCopy ? (
+                <span className="text-[11px] text-slate-500 break-words">{emptyStyleCopy}</span>
+              ) : (
+                node.description && (
+                  <span className="text-[11px] text-slate-500 break-words">{node.description}</span>
+                )
               )}
             </>
           )}

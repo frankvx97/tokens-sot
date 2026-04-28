@@ -2,7 +2,7 @@ import type { ExportOptions } from '@/shared/types';
 import type { TokenSection, TokenSectionEntry } from './types';
 import { toCasing } from '../utils/casing';
 import { rgbaToHex } from '../utils/color';
-import { roundTo, isLikelyFontWeight, mapFontWeightString } from '../utils/units';
+import { roundTo, mapFontWeightString, mapTextCase, mapTextDecoration } from '../utils/units';
 import { shouldShowModeNames, buildSectionLabel } from './sections';
 
 export function renderJSON(sections: TokenSection[], options: ExportOptions, modeInFileName?: boolean): string {
@@ -72,7 +72,7 @@ function buildJSONValue(entry: TokenSectionEntry, options: ExportOptions, _modeN
   }
 
   // Convert font weight strings to numeric CSS values
-  if (entry.mode.value?.type === 'string' && isLikelyFontWeight(entry.token.name, entry.token.groupPath)) {
+  if (entry.mode.value?.type === 'string') {
     const numericWeight = mapFontWeightString(entry.mode.value.value);
     if (numericWeight !== null) return JSON.stringify(numericWeight);
   }
@@ -187,10 +187,28 @@ function renderDTCGJSON(sections: TokenSection[], options: ExportOptions): strin
       // Build DTCG token object
       const dtcgToken: Record<string, unknown> = {};
 
+      // String tokens whose value maps to a CSS weight name → DTCG fontWeight
+      const value = entry.mode.value;
+      const stringFontWeight =
+        value?.type === 'string' ? mapFontWeightString(value.value) : null;
+
       // $type
-      const valueType = entry.mode.value?.type;
-      if (valueType && DTCG_TYPE_MAP[valueType]) {
-        dtcgToken.$type = DTCG_TYPE_MAP[valueType];
+      if (stringFontWeight !== null) {
+        dtcgToken.$type = 'fontWeight';
+      } else {
+        const valueType = value?.type;
+        if (valueType && DTCG_TYPE_MAP[valueType]) {
+          dtcgToken.$type = DTCG_TYPE_MAP[valueType];
+        }
+        // Blur-only shadow tokens are exported as dimensions
+        if (value?.type === 'shadow') {
+          const arr = value.value;
+          const hasShadow = arr.some((e) => e.type === 'drop-shadow' || e.type === 'inner-shadow');
+          const hasBlur = arr.some((e) => e.type === 'layer-blur' || e.type === 'background-blur');
+          if (hasBlur && !hasShadow) {
+            dtcgToken.$type = 'dimension';
+          }
+        }
       }
 
       // $value
@@ -201,8 +219,10 @@ function renderDTCGJSON(sections: TokenSection[], options: ExportOptions): strin
           entry.aliasTarget.name
         ].map(sanitizeDTCGName).join('.');
         dtcgToken.$value = `{${aliasPath}}`;
+      } else if (stringFontWeight !== null) {
+        dtcgToken.$value = stringFontWeight;
       } else {
-        dtcgToken.$value = formatDTCGValue(entry.mode.value, options);
+        dtcgToken.$value = formatDTCGValue(value, options);
       }
 
       // $description
@@ -214,7 +234,23 @@ function renderDTCGJSON(sections: TokenSection[], options: ExportOptions): strin
     });
   });
 
-  return JSON.stringify(root, null, 2) + '\n';
+  return inlineComponentArrays(JSON.stringify(root, null, 2)) + '\n';
+}
+
+// Per DTCG spec (https://www.designtokens.org/tr/2025.10/color/), the
+// `components` array of a color value is rendered on a single line.
+function inlineComponentArrays(json: string): string {
+  return json.replace(
+    /"components":\s*\[\s*([^\][]*?)\s*\]/g,
+    (_match, body: string) => {
+      const compact = body
+        .split(/\s*,\s*/)
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .join(', ');
+      return `"components": [${compact}]`;
+    }
+  );
 }
 
 function sanitizeDTCGName(name: string): string {
@@ -249,22 +285,53 @@ function formatDTCGValue(value: TokenSectionEntry['mode']['value'], options: Exp
       return value.value;
     case 'typography': {
       const typo = value.value;
+      const aliasRef = (alias?: string) =>
+        alias ? `{${alias.split('/').map(sanitizeDTCGName).join('.')}}` : null;
+
       const result: Record<string, unknown> = {
-        fontFamily: [typo.fontFamily],
-        fontSize: { value: typo.fontSize, unit: 'px' },
-        fontWeight: typo.fontWeight,
-        letterSpacing: { value: roundTo(typo.letterSpacing, 3), unit: 'px' }
+        fontFamily: aliasRef(typo.fontFamilyAlias) ?? [typo.fontFamily],
+        fontSize: aliasRef(typo.fontSizeAlias) ?? { value: typo.fontSize, unit: 'px' },
+        fontWeight: aliasRef(typo.fontWeightAlias) ?? typo.fontWeight,
+        letterSpacing:
+          aliasRef(typo.letterSpacingAlias) ?? { value: roundTo(typo.letterSpacing, 3), unit: 'px' }
       };
-      if (typo.lineHeight === 'AUTO') {
+
+      const lineHeightAlias = aliasRef(typo.lineHeightAlias);
+      if (lineHeightAlias) {
+        result.lineHeight = lineHeightAlias;
+      } else if (typo.lineHeight === 'AUTO') {
         result.lineHeight = 1.5;
+      } else if (typeof typo.lineHeight === 'object' && typo.lineHeight && typo.lineHeight.unit === 'percent') {
+        // Unitless ratio
+        result.lineHeight = roundTo(typo.lineHeight.value, 3);
       } else {
-        result.lineHeight = { value: typo.lineHeight, unit: 'px' };
+        result.lineHeight = { value: typo.lineHeight as number, unit: 'px' };
       }
+
+      const textTransform = mapTextCase(typo.textCase);
+      if (textTransform) result.textTransform = textTransform;
+
+      const textDecoration = mapTextDecoration(typo.textDecoration);
+      if (textDecoration) result.textDecoration = textDecoration;
+
+      if (typo.paragraphSpacing && typo.paragraphSpacing > 0) {
+        result.paragraphSpacing = { value: roundTo(typo.paragraphSpacing, 3), unit: 'px' };
+      }
+
       return result;
     }
     case 'shadow': {
+      const blurEntries = value.value.filter((e): e is Extract<typeof e, { type: 'layer-blur' | 'background-blur' }> => e.type === 'layer-blur' || e.type === 'background-blur');
+      const shadowEntries = value.value.filter((e): e is Extract<typeof e, { type: 'drop-shadow' | 'inner-shadow' }> => e.type === 'drop-shadow' || e.type === 'inner-shadow');
+
+      // Blur-only token: emit dimension-style value
+      if (blurEntries.length && !shadowEntries.length) {
+        const radius = blurEntries[0].radius;
+        return { value: radius, unit: 'px' as const };
+      }
+
       // DTCG shadow can be a single object or array
-      const shadows = value.value.map((s) => {
+      const shadows = shadowEntries.map((s) => {
         const { r, g, b, a } = s.color;
         return {
           color: { colorSpace: 'srgb' as const, components: [roundTo(r, 4), roundTo(g, 4), roundTo(b, 4)], ...(a < 1 ? { alpha: roundTo(a, 4) } : {}) },

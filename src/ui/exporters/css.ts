@@ -2,16 +2,25 @@ import type { ExportOptions, NormalizedToken } from '@/shared/types';
 import type { TokenSection, TokenSectionEntry } from './types';
 import { toCasing } from '../utils/casing';
 import { formatColor, formatGradient, formatCompositeColor } from '../utils/color';
-import { formatWithUnit, formatLineHeight, formatLetterSpacing, buildFontStack, mapTextCase, mapTextDecoration, isLikelyFontWeight, mapFontWeightString } from '../utils/units';
+import { formatWithUnit, formatLineHeight, formatLetterSpacing, buildFontStack, mapTextCase, mapTextDecoration, mapFontWeightString } from '../utils/units';
 import { shouldShowModeNames, buildSectionLabel } from './sections';
+import { classifyShadowToken, formatShadowList, formatBlurRadius, getEffectGroupHeadings } from './effects';
 
 interface TypographyClassEntry {
   entry: TokenSectionEntry;
   modeName: string | null;
 }
 
+interface BlurClassEntry {
+  entry: TokenSectionEntry;
+  modeName: string | null;
+  blurType: 'layer-blur' | 'background-blur';
+}
+
 export function isHeadingToken(token: NormalizedToken): boolean {
-  return token.groupPath?.some((g) => /^headings?$/i.test(g)) ?? false;
+  // Match either a "heading(s)" group, or a token name like "Heading 1" / "h1".
+  if (token.groupPath?.some((g) => /^headings?$/i.test(g))) return true;
+  return /^(h[1-6]|heading\s*[1-6])$/i.test(token.name.trim());
 }
 
 export function isBodyToken(token: NormalizedToken): boolean {
@@ -27,12 +36,14 @@ export function renderCSS(sections: TokenSection[], options: ExportOptions, mode
   const includeModeInName = showModes && !modeInFileName;
   const classesMode = (options.cssTypographyFormat ?? 'classes') === 'classes';
   const typographyClassEntries: TypographyClassEntry[] = [];
+  const blurClassEntries: BlurClassEntry[] = [];
   const rootLines: string[] = [];
 
   sections.forEach((section) => {
     const label = buildSectionLabel(section, showModes);
     const modeName = includeModeInName ? section.modeName : null;
     const sectionLines: string[] = [];
+    let prevEffectGroupPath: string[] = [];
 
     section.entries.forEach((entry) => {
       const isTypography = entry.mode.value?.type === 'typography';
@@ -40,6 +51,28 @@ export function renderCSS(sections: TokenSection[], options: ExportOptions, mode
         typographyClassEntries.push({ entry, modeName });
         return;
       }
+
+      // Detect blur-only effect tokens so we can emit a companion utility class
+      // with the correct CSS property (filter vs backdrop-filter).
+      if (entry.mode.value?.type === 'shadow' && !entry.aliasTarget) {
+        const classification = classifyShadowToken(entry.mode.value);
+        if (classification.kind === 'layer-blur' || classification.kind === 'background-blur') {
+          blurClassEntries.push({ entry, modeName, blurType: classification.kind });
+        }
+      }
+
+      // Emit sub-headings reflecting the user's full Figma folder hierarchy.
+      const { headings, nextPrev } = getEffectGroupHeadings(
+        entry.token,
+        prevEffectGroupPath,
+        section.collectionName
+      );
+      headings.forEach((h) => {
+        if (sectionLines.length > 0) sectionLines.push('');
+        sectionLines.push(`  /* ${h} */`);
+      });
+      prevEffectGroupPath = nextPrev;
+
       const declarations = buildCSSDeclarations(entry, options, modeName);
       declarations.forEach((decl) => sectionLines.push(`  ${decl}`));
     });
@@ -70,6 +103,20 @@ export function renderCSS(sections: TokenSection[], options: ExportOptions, mode
       output.push('');
       output.push(`${className} {`);
       body.forEach((line) => output.push(`  ${line}`));
+      output.push('}');
+    });
+  }
+
+  if (blurClassEntries.length > 0) {
+    if (output.length > 0) output.push('');
+    output.push('/* Blur utilities */');
+    blurClassEntries.forEach(({ entry, modeName, blurType }) => {
+      const varName = generateCSSVarName(entry.token, options.casing, modeName, options.includeTopLevelName);
+      const className = varName.replace(/^--/, '.');
+      const property = blurType === 'background-blur' ? 'backdrop-filter' : 'filter';
+      output.push('');
+      output.push(`${className} {`);
+      output.push(`  ${property}: blur(var(${varName}));`);
       output.push('}');
     });
   }
@@ -150,6 +197,16 @@ function buildElementDefaultBlocks(sections: TokenSection[], options: ExportOpti
 function buildCSSDeclarations(entry: TokenSectionEntry, options: ExportOptions, modeName: string | null): string[] {
   const varName = generateCSSVarName(entry.token, options.casing, modeName, options.includeTopLevelName);
 
+  // Blur-only effect tokens emit a bare length value; the surrounding loop adds
+  // a single grouping comment per run of consecutive blurs of the same kind.
+  if (entry.mode.value?.type === 'shadow' && !entry.aliasTarget) {
+    const classification = classifyShadowToken(entry.mode.value);
+    if (classification.kind === 'layer-blur' || classification.kind === 'background-blur') {
+      const radius = formatBlurRadius(classification.radius, options.unit);
+      return [`${varName}: ${radius};`];
+    }
+  }
+
   // Typography tokens emit multiple CSS custom properties per axis
   if (entry.mode.value?.type === 'typography' && !entry.aliasTarget) {
     return buildCSSTypographyDeclarations(varName, entry.mode.value.value, options);
@@ -171,7 +228,7 @@ function buildCSSDeclarations(entry: TokenSectionEntry, options: ExportOptions, 
   if (!value) return [];
 
   // Convert font weight strings to numeric CSS values
-  if (!aliasName && entry.mode.value?.type === 'string' && isLikelyFontWeight(entry.token.name, entry.token.groupPath)) {
+  if (!aliasName && entry.mode.value?.type === 'string') {
     const numericWeight = mapFontWeightString(entry.mode.value.value);
     if (numericWeight !== null) value = String(numericWeight);
   }
@@ -214,6 +271,10 @@ function buildCSSTypographyDeclarations(
     decls.push(`${varName}-text-decoration: ${textDecoration};`);
   }
 
+  if (typo.paragraphSpacing && typo.paragraphSpacing > 0) {
+    decls.push(`${varName}-paragraph-spacing: ${formatWithUnit(typo.paragraphSpacing, options.unit)};`);
+  }
+
   return decls;
 }
 
@@ -233,6 +294,10 @@ function buildCSSTypographyClassBody(entry: TokenSectionEntry, options: ExportOp
   if (tt) lines.push(`text-transform: ${tt};`);
   const td = mapTextDecoration(typo.textDecoration);
   if (td) lines.push(`text-decoration: ${td};`);
+
+  if (typo.paragraphSpacing && typo.paragraphSpacing > 0) {
+    lines.push(`--paragraph-spacing: ${formatWithUnit(typo.paragraphSpacing, options.unit)};`);
+  }
 
   if (isHeading && options.cssHeadingTextWrapBalance) {
     lines.push('text-wrap: balance;');
@@ -286,13 +351,19 @@ function formatTokenValue(
     case 'boolean':
       return value.value ? 'true' : 'false';
     case 'shadow': {
-      return value.value
-        .map((shadow) => {
-          const colorStr = formatColor(shadow.color, options.color);
-          const inset = shadow.type === 'inner-shadow' ? 'inset ' : '';
-          return `${inset}${shadow.x}px ${shadow.y}px ${shadow.blur}px ${shadow.spread}px ${colorStr}`;
-        })
-        .join(', ');
+      const classification = classifyShadowToken(value);
+      switch (classification.kind) {
+        case 'shadow':
+          return formatShadowList(classification.shadows, options.color);
+        case 'layer-blur':
+        case 'background-blur':
+          return formatBlurRadius(classification.radius, options.unit);
+        case 'mixed':
+          return formatShadowList(classification.shadows, options.color);
+        case 'empty':
+          return null;
+      }
+      return null;
     }
     case 'gradient': {
       const gradientType = value.gradientType === 'LINEAR_GRADIENT' ? 'linear-gradient' :

@@ -161,6 +161,34 @@ export function buildExportChunks(
 
   const chunks: ExportChunk[] = [];
   grouped.forEach((collectionSections, collectionName) => {
+    const effectSplitGroups = options.splitEffectGroups
+      ? splitEffectSections(collectionSections)
+      : null;
+
+    if (effectSplitGroups) {
+      effectSplitGroups.forEach(({ groupKey, sections: groupSections }) => {
+        if (options.separateModes) {
+          groupSections.forEach((section) => {
+            const effectiveModeName = groupSections.length > 1 ? section.modeName : null;
+            chunks.push({
+              fileName: buildFileName(groupKey, format, options),
+              sections: [section],
+              modeInFileName: effectiveModeName !== null,
+              collectionLabel: groupKey
+            });
+          });
+        } else {
+          chunks.push({
+            fileName: buildFileName(groupKey, format, options),
+            sections: groupSections,
+            modeInFileName: false,
+            collectionLabel: groupKey
+          });
+        }
+      });
+      return;
+    }
+
     if (options.separateModes) {
       collectionSections.forEach((section) => {
         const effectiveModeName = collectionSections.length > 1 ? section.modeName : null;
@@ -181,4 +209,53 @@ export function buildExportChunks(
 
   // Return chunks in the order they were built (preserves collection order)
   return chunks;
+}
+
+/**
+ * If every entry in the given collection sections is an effect token (kind === 'shadow'),
+ * partition them into sub-collections keyed by the first segment of their groupPath.
+ * Returns null when the collection isn't entirely effects (so default chunking applies).
+ */
+function splitEffectSections(
+  collectionSections: TokenSection[]
+): Array<{ groupKey: string; sections: TokenSection[] }> | null {
+  const allEffects = collectionSections.every((section) =>
+    section.entries.every((entry) => entry.token.kind === 'shadow')
+  );
+  if (!allEffects) return null;
+
+  // Map<groupKey, Map<modeId, TokenSection>> preserving insertion order
+  const groups = new Map<string, Map<string, TokenSection>>();
+
+  collectionSections.forEach((section) => {
+    section.entries.forEach((entry) => {
+      const groupKey = (entry.token.groupPath?.[0] ?? entry.token.name) || 'effect';
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, new Map());
+      }
+      const modeMap = groups.get(groupKey)!;
+      const modeKey = section.modeId ?? '__default__';
+      if (!modeMap.has(modeKey)) {
+        modeMap.set(modeKey, {
+          id: `${section.id}::${groupKey}`,
+          // In split mode, use the group key as the section label so the inline
+          // comment matches the file (e.g. /* shadow */ inside shadow.css instead
+          // of /* Elevation */).
+          collectionName: groupKey,
+          modeId: section.modeId,
+          modeName: section.modeName,
+          entries: []
+        });
+      }
+      modeMap.get(modeKey)!.entries.push(entry);
+    });
+  });
+
+  if (!groups.size) return null;
+
+  const result: Array<{ groupKey: string; sections: TokenSection[] }> = [];
+  groups.forEach((modeMap, groupKey) => {
+    result.push({ groupKey, sections: Array.from(modeMap.values()) });
+  });
+  return result;
 }

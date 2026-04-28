@@ -374,7 +374,12 @@ async function convertTextStyle(style: TextStyle) {
       fontStyle: style.fontName.style,
       fontWeight: mapFontWeight(style.fontName.style),
       fontSize: style.fontSize,
-      lineHeight: style.lineHeight.unit === 'AUTO' ? 'AUTO' : style.lineHeight.value,
+      lineHeight:
+        style.lineHeight.unit === 'AUTO'
+          ? 'AUTO'
+          : style.lineHeight.unit === 'PERCENT'
+            ? { value: style.lineHeight.value / 100, unit: 'percent' as const }
+            : style.lineHeight.value,
       letterSpacing: style.letterSpacing.value ?? 0,
       paragraphSpacing: style.paragraphSpacing ?? 0,
       textCase: style.textCase ?? 'ORIGINAL',
@@ -389,25 +394,37 @@ async function convertTextStyle(style: TextStyle) {
 }
 
 function convertEffectStyle(style: EffectStyle) {
-  const shadows = style.effects
-    .filter((effect) => effect.type === 'DROP_SHADOW' || effect.type === 'INNER_SHADOW')
-    .map((effect) => ({
-      x: effect.offset.x,
-      y: effect.offset.y,
-      blur: effect.radius,
-      spread: 'spread' in effect ? effect.spread : 0,
-      color: {
-        r: effect.color.r,
-        g: effect.color.g,
-        b: effect.color.b,
-        a: effect.color.a
-      },
-      type: effect.type === 'DROP_SHADOW' ? 'drop-shadow' : 'inner-shadow'
-    }));
+  const entries = style.effects
+    .filter((effect) => effect.visible !== false)
+    .map((effect) => {
+      if (effect.type === 'DROP_SHADOW' || effect.type === 'INNER_SHADOW') {
+        return {
+          type: effect.type === 'DROP_SHADOW' ? 'drop-shadow' as const : 'inner-shadow' as const,
+          x: effect.offset.x,
+          y: effect.offset.y,
+          blur: effect.radius,
+          spread: 'spread' in effect ? (effect.spread ?? 0) : 0,
+          color: {
+            r: effect.color.r,
+            g: effect.color.g,
+            b: effect.color.b,
+            a: effect.color.a
+          }
+        };
+      }
+      if (effect.type === 'LAYER_BLUR') {
+        return { type: 'layer-blur' as const, radius: effect.radius };
+      }
+      if (effect.type === 'BACKGROUND_BLUR') {
+        return { type: 'background-blur' as const, radius: effect.radius };
+      }
+      return null;
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
 
   return {
     type: 'shadow',
-    value: shadows
+    value: entries
   } as NormalizedToken['modes'][number]['value'];
 }
 
