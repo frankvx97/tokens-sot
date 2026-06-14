@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FC, type PointerEvent as ReactPointerEvent } from 'react';
 import { Highlight, themes } from 'prism-react-renderer';
-import { Check, Copy, Download, Maximize2, Minimize2, Settings } from 'lucide-react';
+import { Check, Copy, Download, Maximize2, Minimize2, RefreshCw, Settings } from 'lucide-react';
 import { createPluginDispatcher, useAppDispatch, useAppState, usePluginBridge } from '../state/app-state';
 import { AppStateProvider, createMessageListener } from '../state/app-state';
 import JSZip from 'jszip';
@@ -22,6 +22,7 @@ const AppShell: FC = () => {
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('css');
   const [isConfigureOpen, setIsConfigureOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const cssLikeFormat = selectedFormat === 'css' || selectedFormat === 'sass' || selectedFormat === 'less' || selectedFormat === 'stylus';
 
@@ -31,6 +32,19 @@ const AppShell: FC = () => {
     bridge.send({ type: 'ui-ready' });
     return () => window.removeEventListener('message', listener);
   }, [bridge, dispatch]);
+
+  // Re-scan local variables & styles from Figma (the plugin only scans on
+  // launch, so styles created/renamed while it's open won't appear otherwise).
+  // The `tokens-updated` message swaps in the fresh tree and preserves the
+  // current selection; the spinner clears when that fresh tree arrives.
+  const handleRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    bridge.send({ type: 'refresh-data' });
+  }, [bridge]);
+
+  useEffect(() => {
+    setIsRefreshing(false);
+  }, [state.tokens]);
 
   const selectedTokens = useMemo(() => getSelectedTokens(state), [state]);
   const tokenLookup = useMemo(() => {
@@ -397,6 +411,16 @@ const AppShell: FC = () => {
               <FormatSelector value={selectedFormat} onChange={setSelectedFormat} />
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                size="icon"
+                variant="outline"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                title="Refresh styles & variables from Figma"
+                aria-label="Refresh styles & variables from Figma"
+              >
+                <RefreshCw className={`h-4 w-4${isRefreshing ? ' animate-spin' : ''}`} />
+              </Button>
               <Button
                 size="icon"
                 variant="outline"
