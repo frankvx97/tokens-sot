@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "radix-ui-design-system": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "75617a658804650f9a52514b265f32a3f24ebf648710af0f16d00f8db6653930"
+    }
+  }
+}

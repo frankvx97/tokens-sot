@@ -8,7 +8,7 @@
  * the plugin if version is present.
  *
  * Run automatically via the `version` lifecycle hook in package.json so the
- * sidebar version display always stays in sync after `npm version patch|minor|major`.
+ * sidebar version display always stays in sync after `pnpm version patch|minor|major`.
  */
 const fs = require('fs');
 const path = require('path');

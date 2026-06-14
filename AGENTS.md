@@ -11,48 +11,51 @@ This guide is for agentic coding assistants working in this repo.
 - UI build output in `dist/` and inlined by `scripts/build-plugin.cjs`.
 
 ## Commands
+
+This repo uses **pnpm** as its package manager. Do not use `npm` or `yarn` — they will create competing lockfiles. Enable pnpm via `corepack enable` if you don't already have it.
+
 ### Install
-- `npm install`
+- `pnpm install`
 
 ### Build
-- Full build: `npm run build` (UI + main + typecheck).
-- UI only: `npm run build:ui` (Vite, outputs `dist/index.html`).
-- Main only: `npm run build:main` (esbuild, outputs `dist/code.js`).
+- Full build: `pnpm build` (UI + main + typecheck).
+- UI only: `pnpm build:ui` (Vite, outputs `dist/index.html`).
+- Main only: `pnpm build:main` (esbuild, outputs `dist/code.js`).
 
 ### Dev / watch
-- `npm run dev` (watch main + UI).
-- UI only: `npm run dev:ui`.
-- Main only: `npm run dev:main`.
+- `pnpm dev` (watch main + UI).
+- UI only: `pnpm dev:ui`.
+- Main only: `pnpm dev:main`.
 
 ### Lint
-- `npm run lint`
-- `npm run lint:fix`
+- `pnpm lint`
+- `pnpm lint:fix`
 
 ### Typecheck
-- `npm run typecheck`
+- `pnpm typecheck`
 
 ### Tests (Vitest)
-- `npm test` (same as `vitest`).
-- Run a single test file: `npx vitest path/to/file.test.ts`.
-- Run a single test by name: `npx vitest -t "test name"`.
-- Run a single file and test name: `npx vitest path/to/file.test.ts -t "test name"`.
+- `pnpm test` (same as `vitest`).
+- Run a single test file: `pnpm dlx vitest path/to/file.test.ts`.
+- Run a single test by name: `pnpm dlx vitest -t "test name"`.
+- Run a single file and test name: `pnpm dlx vitest path/to/file.test.ts -t "test name"`.
 
 Note: No test files were found in the repo right now.
 
 ### Versioning (patch/minor/major)
-This repo uses `npm version` to bump `package.json`, build the plugin, write the version to the root `VERSION` file, and create a git tag — all in one command.
+This repo uses `pnpm version` to bump `package.json`, build the plugin, write the version to the root `VERSION` file, and create a git tag — all in one command.
 
 **Release workflow:**
 1. Ensure the working tree is clean (commit or stash any changes first).
 2. Run the appropriate version command:
-   - Patch release (x.y.Z): `npm version patch -m "chore(release): %s"`
-   - Minor release (x.Y.0): `npm version minor -m "chore(release): %s"`
-   - Major release (X.0.0): `npm version major -m "chore(release): %s"`
+   - Patch release (x.y.Z): `pnpm version patch -m "chore(release): %s"`
+   - Minor release (x.Y.0): `pnpm version minor -m "chore(release): %s"`
+   - Major release (X.0.0): `pnpm version major -m "chore(release): %s"`
 3. Push the commit and tag: `git push origin <branch> --follow-tags`
 4. Open a PR from the release branch into `main`.
 
-What `npm version` does automatically (via the `version` lifecycle hook):
-- Runs `npm run build` (full build + typecheck).
+What `pnpm version` does automatically (via the `version` lifecycle hook):
+- Runs `pnpm build` (full build + typecheck).
 - Runs `node scripts/sync-manifest-version.cjs` to write the new version into a `VERSION` text file at the project root (for reference only).
 - Stages `dist/` and `VERSION` so they are included in the version commit.
 - Creates an annotated git tag `v<version>` (e.g. `v1.2.3`).

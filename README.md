@@ -2,7 +2,7 @@
 
 Bridge your design system and code effortlessly.
 
-![Version](https://img.shields.io/badge/version-1.2.1-blue.svg)
+![Version](https://img.shields.io/badge/version-1.2.2-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 ## What is this?
@@ -29,14 +29,16 @@ To work with the plugin's source code, you'll need a few tools installed on your
 
 1. **Node.js** – This is what runs the build process. Download it from [nodejs.org](https://nodejs.org/en/download/)
 
-2. **A code editor (IDE)** – We recommend [Visual Studio Code](https://code.visualstudio.com/), which works great for editing plugin code, but you could use any IDE you want.
+2. **pnpm** – This project uses [pnpm](https://pnpm.io/) as its package manager. Once Node.js is installed, you can enable pnpm with `corepack enable` or install it directly from [pnpm.io/installation](https://pnpm.io/installation).
+
+3. **A code editor (IDE)** – We recommend [Visual Studio Code](https://code.visualstudio.com/), which works great for editing plugin code, but you could use any IDE you want.
 
 ### Setting up
 
-Once you have Node.js installed, open your command line or terminal and navigate to the plugin folder. Then run:
+Once you have Node.js and pnpm installed, open your command line or terminal and navigate to the plugin folder. Then run:
 
 ```
-npm install
+pnpm install
 ```
 
 This installs everything the plugin needs to run.
@@ -46,14 +48,14 @@ This installs everything the plugin needs to run.
 To build the plugin, run:
 
 ```
-npm run build
+pnpm build
 ```
 
-Or, if you want the plugin to automatically rebuild as you make changes:
+Or, if you want the plugin to automatically rebuild as you make changes, run:
 
-1. Open the plugin folder in Visual Studio Code
-2. Go to **Terminal > Run Build Task...**
-3. Select **npm: watch**
+```
+pnpm dev
+```
 
 Now whenever you save a file, the plugin will automatically rebuild.
 

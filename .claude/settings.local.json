@@ -2,8 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(tree:*)",
-      "Bash(npm run build:*)",
-      "Bash(find:*)"
+      "Bash(pnpm run build:*)",
+      "Bash(pnpm build:*)",
+      "Bash(find:*)",
+      "Bash(pnpm version *)"
     ],
     "deny": [],
     "ask": []

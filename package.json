@@ -2,13 +2,14 @@
   "name": "tokens-sot",
   "version": "1.2.2",
   "type": "module",
+  "packageManager": "pnpm@11.1.2",
   "description": "Figma plugin to export variables and styles as production-ready design tokens.",
   "main": "dist/code.js",
   "scripts": {
-    "build": "rimraf dist && npm run build:ui && npm run build:main && npm run typecheck",
+    "build": "rimraf dist && pnpm run build:ui && pnpm run build:main && pnpm run typecheck",
     "build:main": "node scripts/build-plugin.cjs",
     "build:ui": "vite build",
-    "dev": "rimraf dist && concurrently \"npm run dev:main\" \"npm run dev:ui\"",
+    "dev": "rimraf dist && concurrently \"pnpm run dev:main\" \"pnpm run dev:ui\"",
     "dev:main": "node scripts/build-plugin.cjs --watch",
     "dev:ui": "vite build --watch --emptyOutDir false",
     "lint": "eslint --ext .ts,.tsx src",
@@ -17,7 +18,7 @@
     "test": "vitest",
     "typecheck": "tsc --noEmit",
     "sync-manifest": "node scripts/sync-manifest-version.cjs",
-    "version": "npm run build && node scripts/sync-manifest-version.cjs && git add -f dist VERSION"
+    "version": "pnpm run build && node scripts/sync-manifest-version.cjs && git add -f dist VERSION"
   },
   "author": "",
   "license": "MIT",

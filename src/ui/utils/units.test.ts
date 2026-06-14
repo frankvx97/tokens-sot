@@ -5,8 +5,8 @@
  * mapping, text-decoration mapping, and unit formatting helpers in
  * src/ui/utils/units.ts.
  *
- * Run with:  npm test
- * Run only this file:  npx vitest src/ui/utils/units.test.ts
+ * Run with:  pnpm test
+ * Run only this file:  pnpm dlx vitest src/ui/utils/units.test.ts
  */
 
 import { describe, it, expect } from 'vitest';
