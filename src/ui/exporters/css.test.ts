@@ -7,7 +7,7 @@
  *   - Heading / body group-path detection helpers.
  *   - HTML element defaults (body baseline + h1–h6 + text-wrap: balance).
  *
- * Run only this file: npx vitest src/ui/exporters/css.test.ts
+ * Run only this file: pnpm dlx vitest src/ui/exporters/css.test.ts
  */
 
 import { describe, it, expect } from 'vitest';

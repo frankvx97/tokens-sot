@@ -6,7 +6,8 @@ Figma plugin that extracts design tokens (variables + styles) and exports them t
 
 - **Stack**: React 19 + TypeScript + Vite + Tailwind CSS
 - **UI Primitives**: Radix UI (Dialog, Checkbox, ToggleGroup, Select)
-- **Build**: `npm run build` (UI via Vite, plugin main via esbuild, then typecheck)
+- **Build**: `pnpm build` (UI via Vite, plugin main via esbuild, then typecheck)
+- **Package manager**: pnpm (use `pnpm install`, `pnpm <script>`, `pnpm dlx`; do not use npm)
 
 ## Architecture
 

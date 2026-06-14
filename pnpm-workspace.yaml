@@ -1,0 +1,10 @@
+# Supply-chain hardening: refuse package versions younger than 3 days (4320 minutes).
+minimumReleaseAge: 4320
+# minimumReleaseAgeExclude:
+#   - '@my-scope/*'
+
+# Approve which dependencies are allowed to run install lifecycle scripts.
+# pnpm v11 consolidated onlyBuiltDependencies / neverBuiltDependencies / etc.
+# into this single map. Undeclared entries error by default (strictDepBuilds).
+allowBuilds:
+  esbuild: true

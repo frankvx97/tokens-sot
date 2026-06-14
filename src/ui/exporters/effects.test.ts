@@ -1,7 +1,7 @@
 /**
  * Tests for the effects exporter helpers.
  *
- * Run only this file: npx vitest src/ui/exporters/effects.test.ts
+ * Run only this file: pnpm dlx vitest src/ui/exporters/effects.test.ts
  */
 
 import { describe, it, expect } from 'vitest';
